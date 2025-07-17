@@ -3,8 +3,9 @@ import { GoogleGenAI } from "@google/genai";
 import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
 
 // --- Ikonlar ---
+// Arayüzde kullanılan SVG ikonları. Her bir ikon farklı bir işlevi temsil ediyor.
 const SparklesIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-yellow-300"><path d="M9.94 14.32c.32-.08.67-.04 1.02.11.4.18.82.43 1.28.74 1.14.78 2.48 1.26 3.91 1.26.41 0 .8-.07 1.17-.2.32-.12.6-.3.82-.54.23-.24.39-.54.46-.88.07-.33.07-.68.04-1.03-.09-.9-.37-1.78-.8-2.6-.43-.82-.98-1.58-1.64-2.24-.67-.67-1.43-1.22-2.25-1.65-.82-.43-1.7-.7-2.6-.8-.35-.04-.7-.04-1.03.03-.34.07-.68.22-.95.45-.27.23-.48.52-.63.85-.15.33-.22.7-.22,1.07,0,1.43.48,2.77,1.26,3.91.49.7.99,1.33,1.52,1.88"/></svg>;
-const BookOpenIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>;
+const BookOpenIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 4 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 4 0 0 1 3-3h7z"></path></svg>;
 const PlayIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>;
 const PauseIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>;
 const LoaderIcon = () => <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>;
@@ -41,11 +42,14 @@ const SettingsModal = ({ isOpen, onClose, settings, setSettings }) => {
     setSettings(prev => ({ ...prev, [category]: { ...prev[category], [key]: parseFloat(value) } }));
   };
 
+  // DÜZELTME: Hem Gemini hem de ElevenLabs verilerini çeken güncellenmiş fonksiyon.
   const handleFetchApiData = async () => {
     setIsFetching(true);
     setFetchError(null);
     try {
-      if (!settings.api.elevenlabs) throw new Error("Lütfen önce ElevenLabs API anahtarınızı girin.");
+      if (!settings.api.elevenlabs) {
+        throw new Error("Lütfen önce ElevenLabs API anahtarınızı girin.");
+      }
 
       const elevenLabsHeaders = { 'xi-api-key': settings.api.elevenlabs };
 
@@ -54,12 +58,14 @@ const SettingsModal = ({ isOpen, onClose, settings, setSettings }) => {
         fetch('https://api.elevenlabs.io/v1/models', { headers: elevenLabsHeaders })
       ]);
 
+      // ElevenLabs verilerini işle
       if (!voicesResponse.ok) throw new Error(`ElevenLabs sesleri alınamadı: ${voicesResponse.statusText}`);
       const voicesData = await voicesResponse.json();
       if (!elevenModelsResponse.ok) throw new Error(`ElevenLabs modelleri alınamadı: ${elevenModelsResponse.statusText}`);
       const elevenModelsData = await elevenModelsResponse.json();
 
-      // Use default Gemini models since the API doesn't provide a list endpoint
+      // Gemini modelleri için sabit bir liste kullanıyoruz, çünkü GoogleGenAI kütüphanesi modelleri otomatik olarak yönetiyor.
+      // API'den dinamik olarak çekmek, basit bir frontend uygulaması için gereksiz karmaşıklık yaratır.
       const defaultGeminiModels = [
         { name: 'models/gemini-2.5-flash', displayName: 'Gemini 2.5 Flash (Varsayılan)' },
         { name: 'models/gemini-1.5-flash', displayName: 'Gemini 1.5 Flash' },
@@ -69,10 +75,11 @@ const SettingsModal = ({ isOpen, onClose, settings, setSettings }) => {
       setApiData({ 
         voices: voicesData.voices, 
         elevenLabsModels: elevenModelsData,
-        geminiModels: defaultGeminiModels
+        geminiModels: defaultGeminiModels // Gemini modellerini sabit listeden ayarla
       });
 
     } catch (error) {
+      console.error("API Veri Çekme Hatası:", error);
       setFetchError(error.message);
     } finally {
       setIsFetching(false);
@@ -149,11 +156,12 @@ const SettingsModal = ({ isOpen, onClose, settings, setSettings }) => {
                 <label className="block text-sm font-medium text-gray-300 mb-1">Gemini API Key</label>
                 <input type="password" name="api.gemini" value={settings.api.gemini} onChange={handleInputChange} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:ring-purple-500 focus:border-purple-500"/>
               </div>
+              {/* DÜZELTME: Gemini Model Dropdown */}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">Gemini Modeli</label>
                 <select name="api.gemini_model_id" value={settings.api.gemini_model_id} onChange={handleInputChange} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:ring-purple-500 focus:border-purple-500">
                   {apiData.geminiModels.length === 0 ? (
-                    <option value="gemini-1.5-flash">gemini-1.5-flash (Varsayılan)</option>
+                    <option value="gemini-2.5-flash">gemini-2.5-flash (Varsayılan)</option>
                   ) : (
                     apiData.geminiModels.map(model => <option key={model.name} value={model.name.split('/')[1]}>{model.displayName}</option>)
                   )}
@@ -175,13 +183,13 @@ const SettingsModal = ({ isOpen, onClose, settings, setSettings }) => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">ElevenLabs Voice ID</label>
-                 <select name="api.elevenlabs_voice_id" value={settings.api.elevenlabs_voice_id} onChange={handleInputChange} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:ring-purple-500 focus:border-purple-500">
-                  {apiData.voices.length === 0 ? (
-                    <option value="xsGHrtxT5AdDzYXTQT0d">Gönül Filiz (Varsayılan)</option>
-                  ) : (
-                    apiData.voices.map(voice => <option key={voice.voice_id} value={voice.voice_id}>{voice.name}</option>)
-                  )}
-                </select>
+                   <select name="api.elevenlabs_voice_id" value={settings.api.elevenlabs_voice_id} onChange={handleInputChange} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:ring-purple-500 focus:border-purple-500">
+                    {apiData.voices.length === 0 ? (
+                      <option value="xsGHrtxT5AdDzYXTQT0d">Gönül Filiz (Varsayılan)</option>
+                    ) : (
+                      apiData.voices.map(voice => <option key={voice.voice_id} value={voice.voice_id}>{voice.name}</option>)
+                    )}
+                  </select>
               </div>
               <div className="pt-2">
                 <button onClick={handleFetchApiData} disabled={isFetching} className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:bg-blue-900">
@@ -198,7 +206,7 @@ const SettingsModal = ({ isOpen, onClose, settings, setSettings }) => {
                 <label className="block text-sm font-medium text-gray-300">Kararlılık (Stability): <span className="font-bold text-purple-300">{settings.voice.stability}</span></label>
                 <input type="range" min="0" max="1" step="0.05" name="voice.stability" value={settings.voice.stability} onChange={handleSliderChange} className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-500"/>
               </div>
-               <div>
+                <div>
                 <label className="block text-sm font-medium text-gray-300">Benzerlik Artışı (Similarity Boost): <span className="font-bold text-purple-300">{settings.voice.similarity_boost}</span></label>
                 <input type="range" min="0" max="1" step="0.05" name="voice.similarity_boost" value={settings.voice.similarity_boost} onChange={handleSliderChange} className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-500"/>
               </div>
@@ -359,6 +367,7 @@ export default function App() {
   
   const [settings, setSettings] = useState(() => {
     const savedSettings = localStorage.getItem('ayarlar');
+    // DÜZELTME: Varsayılan Gemini modeli gemini-2.5-flash olarak güncellendi.
     const defaultSettings = {
       api: { 
         gemini: '', // User must enter their own valid API key
@@ -470,29 +479,46 @@ export default function App() {
       }
       
       const ai = new GoogleGenAI({ apiKey: settings.api.gemini });
-      const model = settings.api.gemini_model_id || 'gemini-2.5-flash';
+      const modelName = settings.api.gemini_model_id || 'gemini-2.5-flash';
+      // The GoogleGenAI client library handles the full model name (e.g., "models/gemini-2.5-flash")
+      // so we ensure it's in the correct format.
+      const model = ai.getGenerativeModel({ model: modelName.startsWith('models/') ? modelName : `models/${modelName}` });
       
-      // Configure the request with thinking for Gemini 2.5 Flash
-      const requestConfig = {
-        model: model,
-        contents: content
-      };
-      
-      // Add thinking config for Gemini 2.5 models
-      if (model.includes('2.5')) {
-        requestConfig.config = {
-          thinkingConfig: {
-            thinkingBudget: 1 // Enable thinking
-          }
-        };
+      const generationConfig = {};
+      // Apply thinkingConfig only for Gemini 2.5 models if supported by the library/API
+      if (modelName.includes('2.5')) {
+          generationConfig.thinkingConfig = {
+              thinkingBudget: 1 // Enable thinking
+          };
       }
       
-      const response = await ai.models.generateContent(requestConfig);
-      const responseText = response.text;
+      const chatHistory = [
+        { role: 'user', parts: [{ text: content }] }
+      ];
+
+      let response;
+      if (responseSchema) {
+        // If a schema is provided, try to enforce JSON output
+        response = await model.generateContent({
+          contents: chatHistory,
+          generationConfig: {
+            ...generationConfig,
+            responseMimeType: "application/json"
+          }
+        });
+      } else {
+        // Otherwise, generate regular text content
+        response = await model.generateContent({
+          contents: chatHistory,
+          generationConfig: generationConfig
+        });
+      }
+
+      const responseText = response.response.text();
       
       console.log('Raw API response:', responseText);
       
-      // If we're expecting JSON response (for story generation), try to parse it
+      // If we're expecting JSON response, try to parse it
       if (responseSchema) {
         try {
           // Try to extract JSON from the response if it's wrapped in other text
@@ -513,7 +539,6 @@ export default function App() {
           
           // For idea suggestions, if JSON parsing fails, try to extract a title from the text
           if (responseSchema.properties && responseSchema.properties.title) {
-            // Try to extract a meaningful title from the response text
             const lines = responseText.split('\n').filter(line => line.trim());
             const firstLine = lines[0]?.trim();
             if (firstLine && firstLine.length > 0) {
