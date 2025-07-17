@@ -360,6 +360,11 @@ const CustomVirtueButton = ({ onGenerate }) => {
   );
 };
 
+/**
+ * Main application component for generating, managing, and playing Turkish bedtime stories using AI and TTS services.
+ *
+ * Provides a user interface for entering story prompts, suggesting ideas based on virtues, generating stories with Google Gemini, synthesizing audio with ElevenLabs, and managing stories with read/unread status. Integrates backend persistence for settings and stories, with localStorage fallback. Includes a settings modal for API keys and voice/model configuration, and supports audio playback with automatic read-status updates.
+ */
 export default function App() {
   const [prompt, setPrompt] = useState('');
   const [stories, setStories] = useState([]);
