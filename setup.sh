@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ====================================================================================
-#            MASAL ANLATICI - TAM OTOMATİK KURULUM BETİĞİ (v2.2 - DietPi)
+#            MASAL ANLATICI - TAM OTOMATİK KURULUM BETİĞİ (v2.3 - IQaudio)
 # ====================================================================================
 #
 # HEDEF SİSTEM:
@@ -13,10 +13,9 @@
 #   1. Sistem paketlerini günceller ve temel araçları (git, curl, nginx, sqlite3) kurar.
 #   2. IQaudio Codec Zero ses kartını otomatik olarak yapılandırır.
 #   3. Web arayüzü için en güncel Node.js (LTS) ve npm'i kurar.
-#   4. .env.example dosyasından .env dosyasını oluşturur (eğer yoksa).
-#   5. React projesini production (üretim) modunda derler.
-#   6. Nginx web sunucusunu React uygulamasını yayınlayacak şekilde yapılandırır.
-#   7. Nginx servisini etkinleştirir, böylece RPi her açıldığında web arayüzü otomatik olarak başlar.
+#   4. React projesini, betiğin çalıştığı klasörde kurar ve derler.
+#   5. Nginx web sunucusunu React uygulamasını yayınlayacak şekilde yapılandırır.
+#   6. Nginx servisini etkinleştirir, böylece RPi her açıldığında web arayüzü otomatik olarak başlar.
 #
 # ====================================================================================
 
@@ -24,12 +23,14 @@
 set -e
 
 # --- DEĞİŞKENLER ---
-APP_DIR="/opt/masal-anlatici"
+# GÜNCELLEME: Proje dizini artık betiğin çalıştığı yer olarak dinamik bir şekilde belirleniyor.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 NEEDS_REBOOT=false
 
 # --- BAŞLANGIÇ ---
 echo "🚀 Masal Anlatıcı Kurulumu Başlatılıyor..."
 echo "Bu betik, DietPi üzerinde Raspberry Pi Zero 2W ve IQaudio Codec Zero için optimize edilmiştir."
+echo "Proje dizini: ${SCRIPT_DIR}"
 echo "------------------------------------------------------------------"
 
 # Kök kullanıcı olarak çalıştırıldığından emin ol
@@ -96,40 +97,30 @@ echo "------------------------------------------------------------------"
 # ====================================================================================
 echo "⚛️  ADIM 4: React uygulaması kuruluyor ve derleniyor..."
 
-# Proje dosyalarının kopyalanacağı dizini oluştur
-mkdir -p "${APP_DIR}"
+# Proje dizinine git
+cd "${SCRIPT_DIR}"
 
-# Mevcut dizindeki tüm proje dosyalarını (bu betik hariç) uygulama dizinine kopyala
-echo "Proje dosyaları ${APP_DIR} dizinine kopyalanıyor..."
-rsync -a --exclude 'setup.sh' "./" "${APP_DIR}/"
-
-# Uygulama dizinine geç
-cd "${APP_DIR}"
-
-# .env dosyasını kontrol et ve oluştur
+# GÜNCELLEME: .env dosyası kontrolü artık kurulumu durdurmuyor.
 if [ ! -f .env ]; then
     if [ -f .env.example ]; then
-        echo "⚠️  .env dosyası bulunamadı. .env.example dosyasından kopyalanıyor."
+        echo "⚠️  .env dosyası bulunamadı. .env.example dosyasından boş bir .env kopyalanıyor."
         cp .env.example .env
-        echo "🛑 LÜTFEN DİKKAT: Kurulum durduruldu. Lütfen ${APP_DIR}/.env dosyasını kendi API anahtarlarınızla güncelleyin ve kurulumu yeniden başlatın."
-        exit 1
+        echo "✅ Boş .env dosyası oluşturuldu. API anahtarlarını daha sonra web arayüzünden girebilirsiniz."
     else
-        echo "❌ HATA: .env veya .env.example dosyası bulunamadı. Kuruluma devam edilemiyor."
-        exit 1
+        echo "⚠️  .env.example dosyası da bulunamadı. Boş bir .env dosyası oluşturuluyor."
+        touch .env
     fi
+else
+    echo "✅ .env dosyası bulundu."
 fi
 
-echo "✅ .env dosyası bulundu. Kuruluma devam ediliyor."
-
-# React bağımlılıklarını (node_modules) kur
 echo "npm bağımlılıkları kuruluyor... (Bu işlem biraz zaman alabilir)"
 npm install
 
-# React uygulamasını production (üretim) için derle.
 echo "React uygulaması derleniyor (npm run build)..."
 npm run build
 
-echo "✅ React uygulaması başarıyla derlendi ve ${APP_DIR}/dist dizininde hazır."
+echo "✅ React uygulaması başarıyla derlendi ve ${SCRIPT_DIR}/dist dizininde hazır."
 echo "------------------------------------------------------------------"
 
 
@@ -140,11 +131,12 @@ echo "🚀 ADIM 5: Nginx web sunucusu React uygulamasını yayınlamak için yap
 
 NGINX_CONF="/etc/nginx/sites-available/masal-anlatici"
 
+# GÜNCELLEME: Nginx root dizini dinamik olarak ayarlanıyor.
 echo "server {
     listen 80 default_server;
     listen [::]:80 default_server;
 
-    root ${APP_DIR}/dist;
+    root ${SCRIPT_DIR}/dist;
     index index.html;
 
     server_name _;
