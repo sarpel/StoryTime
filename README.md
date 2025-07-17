@@ -1,75 +1,157 @@
-# **Masal Anlatıcı 🚀**
+# StoryTime - Uyku Masalları 🚀
 
-Bu proje, bir Raspberry Pi Zero 2W üzerinde çalışan, Google Gemini ve ElevenLabs API'lerini kullanarak 5 yaşındaki bir kız çocuğu için kişiselleştirilmiş, erdem odaklı uyku masalları üreten ve seslendiren bir web uygulamasıdır.
+StoryTime, 5 yaşındaki Türk kız çocukları için özel olarak tasarlanmış, yapay zeka destekli masal üretim uygulamasıdır. Gemini AI ve ElevenLabs teknolojilerini kullanarak kişiselleştirilmiş masallar oluşturur ve seslendirir.
 
-## **🎯 Hedef Donanım ve Yazılım**
+## 🌟 Özellikler
 
-* **Donanım:** Raspberry Pi Zero 2W  
-* **Ses Kartı:** IQaudio Codec Zero (Siyah PCB)  
-* **İşletim Sistemi:** DietPi (Hafif ve performanslı olduğu için tavsiye edilir)
+- **AI Destekli Masal Üretimi**: Gemini 2.5 Flash ile yaratıcı masallar
+- **Türkçe Seslendirme**: ElevenLabs ile doğal Türkçe seslendirme
+- **Eğitici İçerik**: Dürüstlük, cesaret, paylaşım gibi değerleri öğreten masallar
+- **Kişiselleştirilmiş Ayarlar**: Ses kalitesi ve masal süresi ayarları
+- **Veritabanı Desteği**: SQLite ile masal ve ayar saklama
+- **Raspberry Pi Uyumlu**: Hafif RAM kullanımı ile Pi Zero 2W'de çalışır
 
-## **✨ Özellikler**
+## 🛠️ Teknolojiler
 
-* **Modern Arayüz:** React, Vite ve TailwindCSS ile oluşturulmuş, çocuk dostu, koyu temalı, fütüristik ve tamamen Türkçe bir web arayüzü.  
-* **Yapay Zeka Destekli Masal Üretimi:**  
-  * Google Gemini API'si ile istenen konuda veya seçilen erdem (Dürüstlük, Cesaret vb.) üzerine özgün masallar yaratma.  
-  * "Fikir Ver" butonu ile rastgele veya erdem odaklı masal konuları önerme.  
-* **Gerçekçi Seslendirme:**  
-  * ElevenLabs API'si ile oluşturulan masalları akıcı bir Türkçe ile seslendirme.  
-* **Gelişmiş Ayarlar Paneli:**  
-  * Gemini ve ElevenLabs için API anahtarlarını ve model ID'lerini girme.  
-  * API üzerinden mevcut ses ve modelleri dinamik olarak çekip listeden seçme.  
-  * Seslendirme için tonlama (stability) ve benzerlik (similarity) ayarları.  
-  * Masal uzunluğunu dakika olarak belirleme.  
-* **Kompakt Masal Kütüphanesi:**  
-  * Oluşturulan masalları "Aktif" ve "Okunmuş" olarak iki ayrı bölümde listeleme.  
-  * Masalları silme veya tekrar aktif etme.  
-* **Tam Otomatik Kurulum:** setup.sh betiği ile tüm sistem, donanım ve yazılım kurulumunu tek komutla yapma.
+- **Frontend**: React 18, Vite, Tailwind CSS
+- **Backend**: Node.js, Express.js
+- **Veritabanı**: SQLite3
+- **AI**: Google Gemini API
+- **TTS**: ElevenLabs API
 
-## **📂 Proje Yapısı**
+## 📋 Gereksinimler
 
-Projenin ana dosyaları ve dizinleri şunlardır:
+- Node.js 18+ 
+- npm veya yarn
+- Raspberry Pi Zero 2W (opsiyonel)
 
-/  
-├── .env.example      \# API anahtarları için şablon  
-├── .gitignore        \# Versiyon kontrolünde yoksayılacak dosyalar  
-├── setup.sh          \# Ana kurulum betiği  
-├── package.json      \# Proje bağımlılıkları  
-├── index.html        \# Ana HTML dosyası  
-├── src/              \# React uygulama kaynak kodları  
-│   ├── main.jsx  
-│   ├── App.jsx  
-│   └── index.css  
-└── ...               \# Diğer proje dosyaları
+## 🚀 Kurulum
 
-## **🛠️ Kurulum Adımları**
+### 1. Projeyi Klonlayın
+```bash
+git clone <repository-url>
+cd StoryTime
+```
 
-Kurulum, setup.sh betiği sayesinde oldukça basittir.
+### 2. Bağımlılıkları Yükleyin
+```bash
+npm install
+```
 
-**Ön Koşul:** DietPi işletim sisteminin SD karta yazılmış ve Raspberry Pi'nin internete bağlı olması gerekmektedir.
+### 3. API Anahtarlarını Ayarlayın
+Uygulama varsayılan olarak test API anahtarları ile gelir. Kendi anahtarlarınızı kullanmak için:
 
-**1\. API Ayar Dosyasını Oluşturun:**
+1. [Google AI Studio](https://aistudio.google.com/)'dan Gemini API anahtarı alın
+2. [ElevenLabs](https://elevenlabs.io/)'dan API anahtarı alın
+3. Ayarlar panelinden API anahtarlarını güncelleyin
 
-Kuruluma başlamadan önce, projenin API anahtarlarını ve temel ayarlarını içeren .env dosyasını oluşturmanız gerekir. .env.example dosyasını kopyalayarak bu işlemi yapabilirsiniz:
+### 4. Uygulamayı Başlatın
 
-cp .env.example .env
+#### Geliştirme Modu
+```bash
+# Terminal 1: Backend sunucusu
+npm run server
 
-**2\. API Anahtarlarını Girin:**
+# Terminal 2: Frontend geliştirme sunucusu
+npm run dev
+```
 
-Oluşturduğunuz .env dosyasını bir metin editörü ile açın (nano .env) ve kendi API anahtarlarınızı ve istediğiniz ayarları girin.
+#### Üretim Modu
+```bash
+npm run start
+```
 
-**3\. Kurulum Betiğini Çalıştırın:**
+Uygulama http://localhost:3001 adresinde çalışacaktır.
 
-Proje dosyalarının olduğu dizinde aşağıdaki komutu çalıştırın. Betik, geri kalan her şeyi sizin için halledecektir.
+## 🔧 API Konfigürasyonu
 
-sudo ./setup.sh
+### Gemini API
+- **Endpoint**: `https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`
+- **Header**: `x-goog-api-key: YOUR_API_KEY`
+- **Model**: `gemini-2.5-flash` (varsayılan)
 
-Betiğin çalışması, internet hızınıza ve Raspberry Pi'nin performansına bağlı olarak biraz zaman alabilir. Kurulum tamamlandığında, eğer ses kartı ayarları için gerekliyse, sistemin yeniden başlatılması istenecektir.
+### ElevenLabs API
+- **Endpoint**: `https://api.elevenlabs.io/v1/text-to-speech/{voice_id}`
+- **Header**: `xi-api-key: YOUR_API_KEY`
+- **Model**: `eleven_multilingual_v2`
+- **Voice**: `xsGHrtxT5AdDzYXTQT0d` (Gönül Filiz)
 
-## **🖥️ Kullanım**
+## 📁 Proje Yapısı
 
-Kurulum tamamlandıktan ve Raspberry Pi (yeniden) başladıktan sonra:
+```
+StoryTime/
+├── src/
+│   ├── App.jsx          # Ana uygulama bileşeni
+│   ├── main.jsx         # React giriş noktası
+│   └── index.css        # Stil dosyaları
+├── server.js            # Express backend sunucusu
+├── package.json         # Proje bağımlılıkları
+├── vite.config.js       # Vite konfigürasyonu
+├── storytime.db         # SQLite veritabanı (otomatik oluşturulur)
+├── audio/               # Ses dosyaları dizini
+└── README.md           # Bu dosya
+```
 
-1. Aynı ağdaki herhangi bir bilgisayar, telefon veya tabletten bir web tarayıcısı açın.  
-2. Adres çubuğuna Raspberry Pi'nizin IP adresini yazın. (Örn: http://192.168.1.50)  
-3. Masal Anlatıcı uygulamasının arayüzü karşınıza gelecektir. Keyfini çıkarın\!
+## 🗄️ Veritabanı Şeması
+
+### Settings Tablosu
+- `api_gemini`: Gemini API anahtarı
+- `api_elevenlabs`: ElevenLabs API anahtarı
+- `voice_stability`: Ses kararlılığı (0-1)
+- `voice_similarity_boost`: Ses benzerlik artışı (0-1)
+- `generation_duration`: Masal süresi (dakika)
+
+### Stories Tablosu
+- `title`: Masal başlığı
+- `content`: Masal içeriği
+- `audio_url`: Ses dosyası URL'i
+- `audio_file_path`: Yerel ses dosyası yolu
+- `read_status`: Okunma durumu
+
+## 🎯 Kullanım
+
+1. **Masal Oluşturma**: Metin kutusuna masal konusu yazın veya önerilen erdemlerden birini seçin
+2. **Seslendirme**: Oluşturulan masalı dinlemek için play butonuna tıklayın
+3. **Ayarlar**: Sağ üst köşedeki ayarlar butonundan API anahtarlarını ve ses ayarlarını yapılandırın
+4. **Yönetim**: Masalları silin, okunma durumunu değiştirin
+
+## 🔒 Güvenlik
+
+- API anahtarları yerel olarak saklanır
+- HTTPS kullanımı önerilir
+- CORS koruması aktif
+
+## 🐛 Sorun Giderme
+
+### API Hataları
+- API anahtarlarının doğru olduğundan emin olun
+- İnternet bağlantınızı kontrol edin
+- API kotalarını kontrol edin
+
+### Ses Sorunları
+- Tarayıcı ses izinlerini kontrol edin
+- ElevenLabs API anahtarının geçerli olduğundan emin olun
+
+### Veritabanı Sorunları
+- `storytime.db` dosyasının yazma izinlerini kontrol edin
+- SQLite3 bağımlılığının yüklü olduğundan emin olun
+
+## 🤝 Katkıda Bulunma
+
+1. Fork yapın
+2. Feature branch oluşturun (`git checkout -b feature/amazing-feature`)
+3. Değişikliklerinizi commit edin (`git commit -m 'Add amazing feature'`)
+4. Branch'inizi push edin (`git push origin feature/amazing-feature`)
+5. Pull Request oluşturun
+
+## 📄 Lisans
+
+Bu proje MIT lisansı altında lisanslanmıştır.
+
+## 📞 İletişim
+
+Sorularınız için issue açabilir veya pull request gönderebilirsiniz.
+
+---
+
+**Not**: Bu uygulama test ortamında çalışmaktadır. Üretim ortamında kullanmadan önce güvenlik ayarlarını gözden geçirin.

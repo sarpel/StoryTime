@@ -1,4 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { GoogleGenAI } from "@google/genai";
+import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
 
 // --- Ikonlar ---
 const SparklesIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-yellow-300"><path d="M9.94 14.32c.32-.08.67-.04 1.02.11.4.18.82.43 1.28.74 1.14.78 2.48 1.26 3.91 1.26.41 0 .8-.07 1.17-.2.32-.12.6-.3.82-.54.23-.24.39-.54.46-.88.07-.33.07-.68.04-1.03-.09-.9-.37-1.78-.8-2.6-.43-.82-.98-1.58-1.64-2.24-.67-.67-1.43-1.22-2.25-1.65-.82-.43-1.7-.7-2.6-.8-.35-.04-.7-.04-1.03.03-.34.07-.68.22-.95.45-.27.23-.48.52-.63.85-.15.33-.22.7-.22,1.07,0,1.43.48,2.77,1.26,3.91.49.7.99,1.33,1.52,1.88"/></svg>;
@@ -24,6 +26,8 @@ const SettingsModal = ({ isOpen, onClose, settings, setSettings }) => {
   const [apiData, setApiData] = useState({ voices: [], elevenLabsModels: [], geminiModels: [] });
   const [isFetching, setIsFetching] = useState(false);
   const [fetchError, setFetchError] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState('');
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -41,16 +45,13 @@ const SettingsModal = ({ isOpen, onClose, settings, setSettings }) => {
     setIsFetching(true);
     setFetchError(null);
     try {
-      if (!settings.api.gemini) throw new Error("Lütfen önce Gemini API anahtarınızı girin.");
       if (!settings.api.elevenlabs) throw new Error("Lütfen önce ElevenLabs API anahtarınızı girin.");
 
       const elevenLabsHeaders = { 'xi-api-key': settings.api.elevenlabs };
-      const geminiApiUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${settings.api.gemini}`;
 
-      const [voicesResponse, elevenModelsResponse, geminiModelsResponse] = await Promise.all([
+      const [voicesResponse, elevenModelsResponse] = await Promise.all([
         fetch('https://api.elevenlabs.io/v1/voices', { headers: elevenLabsHeaders }),
-        fetch('https://api.elevenlabs.io/v1/models', { headers: elevenLabsHeaders }),
-        fetch(geminiApiUrl)
+        fetch('https://api.elevenlabs.io/v1/models', { headers: elevenLabsHeaders })
       ]);
 
       if (!voicesResponse.ok) throw new Error(`ElevenLabs sesleri alınamadı: ${voicesResponse.statusText}`);
@@ -58,22 +59,78 @@ const SettingsModal = ({ isOpen, onClose, settings, setSettings }) => {
       if (!elevenModelsResponse.ok) throw new Error(`ElevenLabs modelleri alınamadı: ${elevenModelsResponse.statusText}`);
       const elevenModelsData = await elevenModelsResponse.json();
 
-      if (!geminiModelsResponse.ok) throw new Error(`Gemini modelleri alınamadı: ${geminiModelsResponse.statusText}`);
-      const geminiData = await geminiModelsResponse.json();
-      const compatibleGeminiModels = geminiData.models.filter(model =>
-        model.supportedGenerationMethods.includes("generateContent")
-      );
+      // Use default Gemini models since the API doesn't provide a list endpoint
+      const defaultGeminiModels = [
+        { name: 'models/gemini-2.5-flash', displayName: 'Gemini 2.5 Flash (Varsayılan)' },
+        { name: 'models/gemini-1.5-flash', displayName: 'Gemini 1.5 Flash' },
+        { name: 'models/gemini-1.5-pro', displayName: 'Gemini 1.5 Pro' }
+      ];
 
       setApiData({ 
         voices: voicesData.voices, 
         elevenLabsModels: elevenModelsData,
-        geminiModels: compatibleGeminiModels
+        geminiModels: defaultGeminiModels
       });
 
     } catch (error) {
       setFetchError(error.message);
     } finally {
       setIsFetching(false);
+    }
+  };
+
+  const handleSaveSettings = async () => {
+    setIsSaving(true);
+    setSaveMessage('');
+    
+    try {
+      console.log('Saving settings to localStorage...');
+      // Save to localStorage first
+      localStorage.setItem('ayarlar', JSON.stringify(settings));
+      console.log('Settings saved to localStorage successfully');
+      
+      // Try to save to backend
+      console.log('Attempting to save settings to backend...');
+      const response = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(settings)
+      });
+      
+      console.log('Backend response status:', response.status);
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('Backend save successful:', result);
+        setSaveMessage('✅ Ayarlar başarıyla kaydedildi! (Backend + Tarayıcı)');
+        setTimeout(() => setSaveMessage(''), 3000);
+      } else {
+        const errorText = await response.text();
+        console.error('Backend save failed:', response.status, errorText);
+        throw new Error(`Backend hatası: ${response.status} ${response.statusText}`);
+      }
+    } catch (error) {
+      console.error('Settings save error:', error);
+      
+      // Always ensure localStorage is saved even if backend fails
+      try {
+        localStorage.setItem('ayarlar', JSON.stringify(settings));
+        console.log('Settings saved to localStorage as fallback');
+      } catch (localError) {
+        console.error('localStorage save failed:', localError);
+      }
+      
+      if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+        setSaveMessage('⚠️ Ayarlar sadece tarayıcıda kaydedildi. Backend bağlantısı yok.');
+      } else {
+        setSaveMessage(`⚠️ Ayarlar sadece tarayıcıda kaydedildi. Hata: ${error.message}`);
+      }
+      setTimeout(() => setSaveMessage(''), 5000);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -154,13 +211,63 @@ const SettingsModal = ({ isOpen, onClose, settings, setSettings }) => {
               <input type="range" min="1" max="15" step="1" name="generation.duration" value={settings.generation.duration} onChange={handleSliderChange} className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-500"/>
             </div>
           </div>
+          
+          <div className="flex justify-end space-x-4 pt-4">
+            <button 
+              onClick={async () => {
+                console.log('Testing backend connection...');
+                try {
+                  const response = await fetch('/api/health');
+                  const result = await response.json();
+                  console.log('Backend health check:', result);
+                  alert(`Backend bağlantısı: ${response.ok ? '✅ Çalışıyor' : '❌ Hata'}\n${JSON.stringify(result, null, 2)}`);
+                } catch (error) {
+                  console.error('Backend test failed:', error);
+                  alert(`Backend bağlantısı: ❌ Hata\n${error.message}`);
+                }
+              }}
+              className="flex items-center justify-center gap-2 px-4 py-2 font-medium text-white text-sm rounded-full bg-blue-600 hover:bg-blue-700 transition-all"
+            >
+              🔍 Backend Test
+            </button>
+            <button 
+              onClick={handleSaveSettings} 
+              disabled={isSaving} 
+              className="flex items-center justify-center gap-2 px-6 py-3 font-bold text-white text-lg rounded-full bg-green-600 hover:bg-green-700 active:bg-green-800 transition-all duration-200 ease-in-out shadow-lg hover:shadow-xl transform hover:-translate-y-1 disabled:bg-green-900 disabled:text-gray-400 disabled:cursor-not-allowed disabled:transform-none"
+            >
+              {isSaving ? <LoaderIcon /> : '💾'} Ayarları Kaydet
+            </button>
+          </div>
+          
+          {saveMessage && (
+            <div className={`mt-4 p-3 rounded-lg flex items-center gap-3 ${
+              saveMessage.includes('başarıyla') 
+                ? 'bg-green-900/50 border border-green-700 text-green-300' 
+                : 'bg-yellow-900/50 border border-yellow-700 text-yellow-300'
+            }`}>
+              <CheckIcon />
+              <span>{saveMessage}</span>
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 };
 
-const StoryCarousel = ({ title, stories, actions, state }) => {
+const StoryCarousel = ({ title, stories, actions, state, isLoading }) => {
+  if (isLoading) {
+    return (
+      <div className="bg-gray-800/50 backdrop-blur-sm p-6 rounded-2xl shadow-xl border border-purple-800/50">
+        <h2 className="text-2xl font-semibold mb-4 text-purple-300 flex items-center gap-2"><BookOpenIcon /> {title}</h2>
+        <div className="flex items-center justify-center py-8">
+          <LoaderIcon />
+          <span className="ml-2 text-gray-400">Masallar yükleniyor...</span>
+        </div>
+      </div>
+    );
+  }
+  
   if (stories.length === 0) {
     return (
       <div className="bg-gray-800/50 backdrop-blur-sm p-6 rounded-2xl shadow-xl border border-purple-800/50">
@@ -247,18 +354,19 @@ const CustomVirtueButton = ({ onGenerate }) => {
 
 export default function App() {
   const [prompt, setPrompt] = useState('');
-  const [stories, setStories] = useState(() => {
-    const savedStories = localStorage.getItem('masallar');
-    return savedStories ? JSON.parse(savedStories) : [
-      { id: 1, title: 'Cesur Şövalye ve Ejderha', content: 'Bir zamanlar...', read: false, audioUrl: null },
-      { id: 2, title: 'Kayıp Hazine Adası', content: 'Kaptan Kanca...', read: true, audioUrl: null },
-    ];
-  });
+  const [stories, setStories] = useState([]);
+  const [isLoadingStories, setIsLoadingStories] = useState(true);
   
   const [settings, setSettings] = useState(() => {
     const savedSettings = localStorage.getItem('ayarlar');
     const defaultSettings = {
-      api: { gemini: '', gemini_model_id: 'gemini-1.5-flash', elevenlabs: '', elevenlabs_model_id: 'eleven_multilingual_v2', elevenlabs_voice_id: 'xsGHrtxT5AdDzYXTQT0d' },
+      api: { 
+        gemini: '', // User must enter their own valid API key
+        gemini_model_id: 'gemini-2.5-flash', 
+        elevenlabs: '', // User must enter their own valid API key
+        elevenlabs_model_id: 'eleven_multilingual_v2', 
+        elevenlabs_voice_id: 'xsGHrtxT5AdDzYXTQT0d' 
+      },
       voice: { stability: 0.6, similarity_boost: 0.7 },
       generation: { duration: 5 }
     };
@@ -273,7 +381,75 @@ export default function App() {
   const audioRef = useRef(null);
 
   useEffect(() => { localStorage.setItem('ayarlar', JSON.stringify(settings)); }, [settings]);
-  useEffect(() => { localStorage.setItem('masallar', JSON.stringify(stories)); }, [stories]);
+  
+  // Load settings from backend on component mount
+  useEffect(() => {
+    const loadSettings = async () => {
+      console.log('Loading settings from backend...');
+      try {
+        const response = await fetch('/api/settings');
+        console.log('Backend settings response status:', response.status);
+        
+        if (response.ok) {
+          const backendSettings = await response.json();
+          console.log('Backend settings loaded:', backendSettings);
+          
+          if (backendSettings && Object.keys(backendSettings).length > 0) {
+            setSettings(backendSettings);
+            localStorage.setItem('ayarlar', JSON.stringify(backendSettings));
+            console.log('Settings updated from backend');
+          } else {
+            console.log('No settings found in backend, using localStorage');
+          }
+        } else {
+          console.log('Backend settings load failed, using localStorage');
+        }
+      } catch (error) {
+        console.error('Settings load error:', error);
+        console.log('Using localStorage settings as fallback');
+        // Continue with localStorage settings if backend fails
+      }
+    };
+    
+    loadSettings();
+  }, []);
+  
+  // Load stories from backend on component mount
+  useEffect(() => {
+    const loadStories = async () => {
+      try {
+        const response = await fetch('/api/stories');
+        if (response.ok) {
+          const backendStories = await response.json();
+          setStories(backendStories);
+        } else {
+          // Fallback to localStorage if backend fails
+          const savedStories = localStorage.getItem('masallar');
+          if (savedStories) {
+            setStories(JSON.parse(savedStories));
+          }
+        }
+      } catch (error) {
+        console.error('Stories load error:', error);
+        // Fallback to localStorage if backend fails
+        const savedStories = localStorage.getItem('masallar');
+        if (savedStories) {
+          setStories(JSON.parse(savedStories));
+        }
+      } finally {
+        setIsLoadingStories(false);
+      }
+    };
+    
+    loadStories();
+  }, []);
+  
+  // Save stories to localStorage as backup
+  useEffect(() => { 
+    if (stories.length > 0) {
+      localStorage.setItem('masallar', JSON.stringify(stories)); 
+    }
+  }, [stories]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -285,22 +461,80 @@ export default function App() {
     return () => audio.removeEventListener('ended', handleEnded);
   }, [playingId]);
 
-  const callGeminiAPI = async (chatHistory, responseSchema) => {
+  const callGeminiAPI = async (content, responseSchema) => {
     setIsLoading(true);
     setError(null);
     try {
-      if (!settings.api.gemini) throw new Error("Gemini API anahtarı Ayarlar panelinde tanımlanmamış.");
-      const model = settings.api.gemini_model_id || 'gemini-1.5-flash';
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${settings.api.gemini}`;
-      const payload = { contents: chatHistory, generationConfig: { responseMimeType: "application/json", responseSchema } };
-      const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      if (!response.ok) throw new Error(`API hatası: ${response.status} ${await response.text()}`);
-      const result = await response.json();
-      if (result.candidates?.[0]) return JSON.parse(result.candidates[0].content.parts[0].text);
-      throw new Error("API'den geçerli bir yanıt alınamadı.");
+      if (!settings.api.gemini) {
+        throw new Error("Gemini API anahtarı eksik. Lütfen ayarlar panelinden geçerli bir API anahtarı girin.");
+      }
+      
+      const ai = new GoogleGenAI({ apiKey: settings.api.gemini });
+      const model = settings.api.gemini_model_id || 'gemini-2.5-flash';
+      
+      // Configure the request with thinking for Gemini 2.5 Flash
+      const requestConfig = {
+        model: model,
+        contents: content
+      };
+      
+      // Add thinking config for Gemini 2.5 models
+      if (model.includes('2.5')) {
+        requestConfig.config = {
+          thinkingConfig: {
+            thinkingBudget: 1 // Enable thinking
+          }
+        };
+      }
+      
+      const response = await ai.models.generateContent(requestConfig);
+      const responseText = response.text;
+      
+      console.log('Raw API response:', responseText);
+      
+      // If we're expecting JSON response (for story generation), try to parse it
+      if (responseSchema) {
+        try {
+          // Try to extract JSON from the response if it's wrapped in other text
+          const jsonMatch = responseText.match(/\{.*\}/s);
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            console.log('Parsed JSON response:', parsed);
+            return parsed;
+          } else {
+            // If no JSON found, try parsing the entire response
+            const parsed = JSON.parse(responseText);
+            console.log('Parsed full response as JSON:', parsed);
+            return parsed;
+          }
+        } catch (parseError) {
+          console.error("JSON parse error:", parseError);
+          console.log("Response text that failed to parse:", responseText);
+          
+          // For idea suggestions, if JSON parsing fails, try to extract a title from the text
+          if (responseSchema.properties && responseSchema.properties.title) {
+            // Try to extract a meaningful title from the response text
+            const lines = responseText.split('\n').filter(line => line.trim());
+            const firstLine = lines[0]?.trim();
+            if (firstLine && firstLine.length > 0) {
+              return { title: firstLine };
+            }
+          }
+          
+          // If all else fails, return the raw text with a default structure
+          return { title: "Masal", story: responseText };
+        }
+      }
+      
+      // For regular text responses, return the text directly
+      return responseText;
     } catch (err) {
       console.error("Gemini API hatası:", err);
-      setError(err.message);
+      if (err.message.includes('API key')) {
+        setError("Geçersiz Gemini API anahtarı. Lütfen ayarlar panelinden doğru API anahtarını girin.");
+      } else {
+        setError(`Gemini API hatası: ${err.message}`);
+      }
       return null;
     } finally {
       setIsLoading(false);
@@ -310,40 +544,91 @@ export default function App() {
   const callElevenLabsAPI = async (text) => {
     setError(null);
     try {
-        if (!settings.api.elevenlabs) throw new Error("ElevenLabs API anahtarı Ayarlar panelinde tanımlanmamış.");
-        const apiUrl = `https://api.elevenlabs.io/v1/text-to-speech/${settings.api.elevenlabs_voice_id}`;
-        const headers = { 'Content-Type': 'application/json', 'xi-api-key': settings.api.elevenlabs };
-        const body = JSON.stringify({ text, model_id: settings.api.elevenlabs_model_id, voice_settings: { stability: settings.voice.stability, similarity_boost: settings.voice.similarity_boost } });
-        const response = await fetch(apiUrl, { method: 'POST', headers, body });
-        if (!response.ok) throw new Error(`ElevenLabs API hatası: ${response.status} ${await response.text()}`);
-        const audioBlob = await response.blob();
-        return URL.createObjectURL(audioBlob);
+      if (!settings.api.elevenlabs) {
+        throw new Error("ElevenLabs API anahtarı eksik. Lütfen ayarlar panelinden geçerli bir API anahtarı girin.");
+      }
+      
+      const elevenlabs = new ElevenLabsClient({ apiKey: settings.api.elevenlabs });
+      
+      const audio = await elevenlabs.textToSpeech.convert(settings.api.elevenlabs_voice_id, {
+        text: text,
+        modelId: settings.api.elevenlabs_model_id || 'eleven_multilingual_v2',
+        outputFormat: 'mp3_44100_128',
+        voiceSettings: {
+          stability: settings.voice.stability,
+          similarityBoost: settings.voice.similarity_boost
+        }
+      });
+      
+      // Convert the audio buffer to a blob URL
+      const audioBlob = new Blob([audio], { type: 'audio/mpeg' });
+      return URL.createObjectURL(audioBlob);
     } catch (err) {
-        console.error("ElevenLabs API hatası:", err);
-        setError(err.message);
-        return null;
+      console.error("ElevenLabs API hatası:", err);
+      if (err.message.includes('API key') || err.message.includes('401')) {
+        setError("Geçersiz ElevenLabs API anahtarı. Lütfen ayarlar panelinden doğru API anahtarını girin.");
+      } else {
+        setError(`ElevenLabs API hatası: ${err.message}`);
+      }
+      return null;
     }
   };
 
   const handleGenerateStory = async () => {
     if (!prompt) { setError("Lütfen bir masal konusu girin."); return; }
-    const systemPrompt = `Sen, 5 yaşındaki Türk kız çocukları için sevecen bir masalcısın. Masalların olumlu, öğretici ve güvenli olmalı. Kullanıcının isteğine göre, yaklaşık ${settings.generation.duration} dakika sürecek bir masal oluştur ve ilgi çekici bir başlık bul.`;
-    const chatHistory = [{ role: "user", parts: [{ text: `${systemPrompt}\n\nİstek: "${prompt}"` }] }];
+    const systemPrompt = `Sen, 5 yaşındaki Türk kız çocukları için sevecen bir masalcısın. Masalların her zaman olumlu, öğretici ve güvenli olmalı. Şiddet, korku veya olumsuz içeriklerden kaçınmalısın. Masallar Türkçe ve akıcı bir dille yazılmalı. Her masalın sonunda genellikle küçük bir ders veya iyi bir duygu bırakmalı. Kullanıcının isteğine göre, yaklaşık ${settings.generation.duration} dakika sürecek bir masal oluştur ve ilgi çekici bir başlık bul. Yanıtını şu JSON formatında ver: {"title": "Masal Başlığı", "story": "Masal içeriği"}`;
+    const content = `${systemPrompt}\n\nİstek: "${prompt}"`;
     const schema = { type: "OBJECT", properties: { "title": { "type": "STRING" }, "story": { "type": "STRING" } }, required: ["title", "story"] };
-    const result = await callGeminiAPI(chatHistory, schema);
+    const result = await callGeminiAPI(content, schema);
     if (result) {
-      setStories(prev => [{ id: Date.now(), title: result.title, content: result.story, read: false, audioUrl: null }, ...prev]);
+      const newStory = { id: Date.now(), title: result.title, content: result.story, read: false, audioUrl: null };
+      
+      // Save to backend
+      try {
+        const response = await fetch('/api/stories', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: result.title,
+            content: result.story
+          })
+        });
+        
+        if (response.ok) {
+          const savedStory = await response.json();
+          newStory.id = savedStory.id;
+        }
+      } catch (error) {
+        console.error('Story save error:', error);
+        // Continue with local storage if backend fails
+      }
+      
+      setStories(prev => [newStory, ...prev]);
       setPrompt('');
     }
   };
-  
+
   const handleSuggestIdea = async (virtue, detail) => {
+    const systemPrompt = `Sen, 5 yaşındaki Türk kız çocukları için sevecen bir masalcısın. Masalların her zaman olumlu, öğretici ve güvenli olmalı. Şiddet, korku veya olumsuz içeriklerden kaçınmalısın. Masallar Türkçe ve akıcı bir dille yazılmalı. Her masalın sonunda genellikle küçük bir ders veya iyi bir duygu bırakmalı.`;
+    
     const ideaPrompt = virtue 
-      ? `5 yaşındaki bir kız çocuğu için, içinde '${virtue}' erdemini anlatan, '${detail}' vurgulayan, tek cümlelik bir masal fikri öner. Yanıtını sadece {"title": "önerilen fikir"} formatında bir JSON olarak ver.`
-      : `5 yaşındaki bir kız çocuğu için, Türkçe, yaratıcı ve eğlenceli bir uyku masalı konusu öner. Yanıtını sadece {"title": "önerilen başlık"} formatında bir JSON olarak ver.`;
+      ? `${systemPrompt}\n\n5 yaşındaki bir kız çocuğu için, içinde '${virtue}' erdemini anlatan, '${detail}' vurgulayan, tek cümlelik bir masal fikri öner. Yanıtını sadece {"title": "önerilen fikir"} formatında bir JSON olarak ver.`
+      : `${systemPrompt}\n\n5 yaşındaki bir kız çocuğu için, Türkçe, yaratıcı ve eğlenceli bir uyku masalı konusu öner. Yanıtını sadece {"title": "önerilen başlık"} formatında bir JSON olarak ver.`;
+    
     const schema = { type: "OBJECT", properties: { "title": { "type": "STRING" } }, required: ["title"] };
-    const result = await callGeminiAPI([{ role: "user", parts: [{ text: ideaPrompt }] }], schema);
-    if (result?.title) setPrompt(result.title);
+    const result = await callGeminiAPI(ideaPrompt, schema);
+    
+    console.log('API Response for idea suggestion:', result);
+    
+    if (result && result.title) {
+      setPrompt(result.title);
+    } else if (result && typeof result === 'string') {
+      // If the API returns just a string, use it directly
+      setPrompt(result);
+    } else {
+      console.error('Unexpected API response format:', result);
+      setError('Fikir önerisi alınamadı. Lütfen tekrar deneyin.');
+    }
   };
 
   const handlePlayPause = async (story) => {
@@ -366,8 +651,38 @@ export default function App() {
     }
   };
 
-  const handleRemoveStory = (id) => setStories(prev => prev.filter(s => s.id !== id));
-  const handleToggleReadStatus = (id) => setStories(prev => prev.map(s => s.id === id ? { ...s, read: !s.read } : s));
+  const handleRemoveStory = async (id) => {
+    // Delete from backend
+    try {
+      await fetch(`/api/stories/${id}`, { method: 'DELETE' });
+    } catch (error) {
+      console.error('Story delete error:', error);
+      // Continue with local deletion if backend fails
+    }
+    
+    setStories(prev => prev.filter(s => s.id !== id));
+  };
+  
+  const handleToggleReadStatus = async (id) => {
+    const story = stories.find(s => s.id === id);
+    if (!story) return;
+    
+    const newReadStatus = !story.read;
+    
+    // Update in backend
+    try {
+      await fetch(`/api/stories/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ read: newReadStatus })
+      });
+    } catch (error) {
+      console.error('Story update error:', error);
+      // Continue with local update if backend fails
+    }
+    
+    setStories(prev => prev.map(s => s.id === id ? { ...s, read: newReadStatus } : s));
+  };
 
   const virtues = [
     { name: 'Dürüstlük', detail: 'doğruyu söylemenin önemi' },
@@ -429,8 +744,8 @@ export default function App() {
         </div>
 
         <div className="space-y-12">
-          <StoryCarousel title="Aktif Masallar" stories={activeStories} actions={{ play: handlePlayPause, remove: handleRemoveStory, toggleRead: handleToggleReadStatus }} state={{ isLoading, synthesizingId, playingId }}/>
-          <StoryCarousel title="Okunmuş Masallar" stories={passiveStories} actions={{ play: handlePlayPause, remove: handleRemoveStory, toggleRead: handleToggleReadStatus }} state={{ isLoading, synthesizingId, playingId }}/>
+          <StoryCarousel title="Aktif Masallar" stories={activeStories} actions={{ play: handlePlayPause, remove: handleRemoveStory, toggleRead: handleToggleReadStatus }} state={{ isLoading, synthesizingId, playingId }} isLoading={isLoadingStories}/>
+          <StoryCarousel title="Okunmuş Masallar" stories={passiveStories} actions={{ play: handlePlayPause, remove: handleRemoveStory, toggleRead: handleToggleReadStatus }} state={{ isLoading, synthesizingId, playingId }} isLoading={isLoadingStories}/>
         </div>
       </div>
     </div>
