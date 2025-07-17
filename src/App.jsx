@@ -4,7 +4,7 @@ import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
 
 // --- Ikonlar ---
 // Arayüzde kullanılan SVG ikonları. Her bir ikon farklı bir işlevi temsil ediyor.
-const SparklesIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-yellow-300"><path d="M9.94 14.32c.32-.08.67-.04 1.02.11.4.18.82.43 1.28.74 1.14.78 2.48 1.26 3.91 1.26.41 0 .8-.07 1.17-.2.32-.12.6-.3.82-.54.23-.24.39-.54.46-.88.07-.33.07-.68.04-1.03-.09-.9-.37-1.78-.8-2.6-.43-.82-.98-1.58-1.64-2.24-.67-.67-1.43-1.22-2.25-1.65-.82-.43-1.7-.7-2.6-.8-.35-.04-.7-.04-1.03.03-.34.07-.68.22-.95.45-.27.23-.48.52-.63.85-.15.33-.22.7-.22,1.07,0,1.43.48,2.77,1.26,3.91.49.7.99,1.33,1.52,1.88"/></svg>;
+const SparklesIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-yellow-300"><path d="M9.94 14.32c.32-.08.67-.04 1.02.11.4.18.82.43 1.28.74 1.14.78 2.48 1.26 3.91 1.26.41 0 .8-.07 1.17-.2.32-.12.6-.3.82-.54.23-.24.39-.54.46-.88.07-.33.07-.68.04-1.03-.09-.9-.37-1.78-.8-2.6-.43-.82-.98-1.58-1.64-2.24-.67-.67-1.43-1.22-2.25-1.65-.82-.43-1.7-.7-2.6-.8-.35-.04-.7-.04-1.03.03-.34.07-.68.22-.95.45-.27.23-.48.52-.63.85-.15.33-.22.7-.22 1.07 0 1.43.48 2.77 1.26 3.91.49.7.99 1.33 1.52 1.88"/></svg>;
 const BookOpenIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 4 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 4 0 0 1 3-3h7z"></path></svg>;
 const PlayIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>;
 const PauseIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>;
@@ -29,6 +29,16 @@ const SettingsModal = ({ isOpen, onClose, settings, setSettings }) => {
   const [fetchError, setFetchError] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
+
+  // Reset form when modal opens to ensure it shows current settings
+  useEffect(() => {
+    if (isOpen) {
+      // Force re-render of form fields with current settings
+      setApiData({ voices: [], elevenLabsModels: [], geminiModels: [] });
+      setFetchError(null);
+      setSaveMessage('');
+    }
+  }, [isOpen]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -154,12 +164,12 @@ const SettingsModal = ({ isOpen, onClose, settings, setSettings }) => {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">Gemini API Key</label>
-                <input type="password" name="api.gemini" value={settings.api.gemini} onChange={handleInputChange} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:ring-purple-500 focus:border-purple-500"/>
+                <input type="password" name="api.gemini" value={settings.api.gemini || ''} onChange={handleInputChange} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:ring-purple-500 focus:border-purple-500"/>
               </div>
               {/* DÜZELTME: Gemini Model Dropdown */}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">Gemini Modeli</label>
-                <select name="api.gemini_model_id" value={settings.api.gemini_model_id} onChange={handleInputChange} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:ring-purple-500 focus:border-purple-500">
+                <select name="api.gemini_model_id" value={settings.api.gemini_model_id || 'gemini-2.5-flash'} onChange={handleInputChange} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:ring-purple-500 focus:border-purple-500">
                   {apiData.geminiModels.length === 0 ? (
                     <option value="gemini-2.5-flash">gemini-2.5-flash (Varsayılan)</option>
                   ) : (
@@ -169,11 +179,11 @@ const SettingsModal = ({ isOpen, onClose, settings, setSettings }) => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">ElevenLabs API Key</label>
-                <input type="password" name="api.elevenlabs" value={settings.api.elevenlabs} onChange={handleInputChange} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:ring-purple-500 focus:border-purple-500"/>
+                <input type="password" name="api.elevenlabs" value={settings.api.elevenlabs || ''} onChange={handleInputChange} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:ring-purple-500 focus:border-purple-500"/>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">ElevenLabs Model ID</label>
-                <select name="api.elevenlabs_model_id" value={settings.api.elevenlabs_model_id} onChange={handleInputChange} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:ring-purple-500 focus:border-purple-500">
+                <select name="api.elevenlabs_model_id" value={settings.api.elevenlabs_model_id || 'eleven_multilingual_v2'} onChange={handleInputChange} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:ring-purple-500 focus:border-purple-500">
                   {apiData.elevenLabsModels.length === 0 ? (
                     <option value="eleven_multilingual_v2">eleven_multilingual_v2 (Varsayılan)</option>
                   ) : (
@@ -183,13 +193,18 @@ const SettingsModal = ({ isOpen, onClose, settings, setSettings }) => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">ElevenLabs Voice ID</label>
-                   <select name="api.elevenlabs_voice_id" value={settings.api.elevenlabs_voice_id} onChange={handleInputChange} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:ring-purple-500 focus:border-purple-500">
-                    {apiData.voices.length === 0 ? (
-                      <option value="xsGHrtxT5AdDzYXTQT0d">Gönül Filiz (Varsayılan)</option>
-                    ) : (
-                      apiData.voices.map(voice => <option key={voice.voice_id} value={voice.voice_id}>{voice.name}</option>)
-                    )}
-                  </select>
+                <select
+                  name="api.elevenlabs_voice_id"
+                  value={settings.api.elevenlabs_voice_id || 'xsGHrtxT5AdDzYXTQT0d'} // Varsayılan değeri koruyarak birleştirildi
+                  onChange={handleInputChange}
+                  className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:ring-purple-500 focus:border-purple-500"
+                >
+                  {apiData.voices.length === 0 ? (
+                    <option value="xsGHrtxT5AdDzYXTQT0d">Gönül Filiz (Varsayılan)</option>
+                  ) : (
+                    apiData.voices.map(voice => <option key={voice.voice_id} value={voice.voice_id}>{voice.name}</option>)
+                  )}
+                </select>
               </div>
               <div className="pt-2">
                 <button onClick={handleFetchApiData} disabled={isFetching} className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:bg-blue-900">
@@ -203,20 +218,31 @@ const SettingsModal = ({ isOpen, onClose, settings, setSettings }) => {
             <h3 className="text-xl font-semibold text-purple-400 mb-4">Seslendirme Ayarları</h3>
             <div className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-gray-300">Kararlılık (Stability): <span className="font-bold text-purple-300">{settings.voice.stability}</span></label>
-                <input type="range" min="0" max="1" step="0.05" name="voice.stability" value={settings.voice.stability} onChange={handleSliderChange} className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-500"/>
+                <label className="block text-sm font-medium text-gray-300">Kararlılık (Stability): <span className="font-bold text-purple-300">{settings.voice.stability || 0.6}</span></label>
+                <input type="range" min="0" max="1" step="0.05" name="voice.stability" value={settings.voice.stability || 0.6} onChange={handleSliderChange} className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-500"/>
               </div>
-                <div>
-                <label className="block text-sm font-medium text-gray-300">Benzerlik Artışı (Similarity Boost): <span className="font-bold text-purple-300">{settings.voice.similarity_boost}</span></label>
-                <input type="range" min="0" max="1" step="0.05" name="voice.similarity_boost" value={settings.voice.similarity_boost} onChange={handleSliderChange} className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-500"/>
+              <div>
+                <label className="block text-sm font-medium text-gray-300">
+                  Benzerlik Artışı (Similarity Boost): <span className="font-bold text-purple-300">{settings.voice.similarity_boost || 0.7}</span>
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  name="voice.similarity_boost"
+                  value={settings.voice.similarity_boost || 0.7} // Varsayılan değer korundu
+                  onChange={handleSliderChange}
+                  className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
+                />
               </div>
             </div>
           </div>
           <div className="p-4 bg-gray-900/50 rounded-lg border border-gray-700">
             <h3 className="text-xl font-semibold text-purple-400 mb-4">Masal Üretim Ayarları</h3>
             <div>
-              <label className="block text-sm font-medium text-gray-300">Tahmini Masal Süresi (dakika): <span className="font-bold text-purple-300">{settings.generation.duration}</span></label>
-              <input type="range" min="1" max="15" step="1" name="generation.duration" value={settings.generation.duration} onChange={handleSliderChange} className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-500"/>
+              <label className="block text-sm font-medium text-gray-300">Tahmini Masal Süresi (dakika): <span className="font-bold text-purple-300">{settings.generation.duration || 5}</span></label>
+              <input type="range" min="1" max="15" step="1" name="generation.duration" value={settings.generation.duration || 5} onChange={handleSliderChange} className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-500"/>
             </div>
           </div>
           
@@ -471,8 +497,29 @@ export default function App() {
       if (playingId) setStories(prev => prev.map(s => s.id === playingId ? { ...s, read: true } : s));
       setPlayingId(null);
     };
+    const handleError = (e) => {
+      console.error('Audio element error:', e);
+      setError(`Ses dosyası yüklenemedi: ${e.target.error?.message || 'Bilinmeyen hata'}`);
+      setPlayingId(null);
+    };
+    const handleLoadStart = () => {
+      console.log('Audio loading started');
+    };
+    const handleCanPlay = () => {
+      console.log('Audio can play');
+    };
+    
     audio.addEventListener('ended', handleEnded);
-    return () => audio.removeEventListener('ended', handleEnded);
+    audio.addEventListener('error', handleError);
+    audio.addEventListener('loadstart', handleLoadStart);
+    audio.addEventListener('canplay', handleCanPlay);
+    
+    return () => {
+      audio.removeEventListener('ended', handleEnded);
+      audio.removeEventListener('error', handleError);
+      audio.removeEventListener('loadstart', handleLoadStart);
+      audio.removeEventListener('canplay', handleCanPlay);
+    };
   }, [playingId]);
 
   const callGeminiAPI = async (content, responseSchema) => {
@@ -483,7 +530,7 @@ export default function App() {
         throw new Error("Gemini API anahtarı eksik. Lütfen ayarlar panelinden geçerli bir API anahtarı girin.");
       }
       
-      const ai = new GoogleGenAI({ apiKey: settings.api.gemini });
+      const ai = new GoogleGenAI(settings.api.gemini);
       const modelName = settings.api.gemini_model_id || 'gemini-2.5-flash';
       // The GoogleGenAI client library handles the full model name (e.g., "models/gemini-2.5-flash")
       // so we ensure it's in the correct format.
@@ -580,19 +627,69 @@ export default function App() {
       
       const elevenlabs = new ElevenLabsClient({ apiKey: settings.api.elevenlabs });
       
+      console.log('ElevenLabs API çağrısı başlatılıyor...');
+      console.log('Voice ID:', settings.api.elevenlabs_voice_id);
+      console.log('Model ID:', settings.api.elevenlabs_model_id);
+      console.log('Text length:', text.length);
+      
+      // Use the correct SDK method with proper parameters
       const audio = await elevenlabs.textToSpeech.convert(settings.api.elevenlabs_voice_id, {
         text: text,
         modelId: settings.api.elevenlabs_model_id || 'eleven_multilingual_v2',
         outputFormat: 'mp3_44100_128',
         voiceSettings: {
-          stability: settings.voice.stability,
-          similarityBoost: settings.voice.similarity_boost
+          stability: settings.voice.stability || 0.6,
+          similarityBoost: settings.voice.similarity_boost || 0.7
         }
       });
+
+      console.log('ElevenLabs API response type:', typeof audio);
+      console.log('ElevenLabs API response:', audio);
       
-      // Convert the audio buffer to a blob URL
-      const audioBlob = new Blob([audio], { type: 'audio/mpeg' });
-      return URL.createObjectURL(audioBlob);
+      // Check if response is a stream or buffer
+      let audioData;
+      if (audio && typeof audio === 'object' && audio[Symbol.asyncIterator]) {
+        // Handle as stream
+        console.log('Response is a stream, collecting chunks...');
+        const chunks = [];
+        for await (const chunk of audio) {
+          chunks.push(chunk);
+        }
+        audioData = new Uint8Array(chunks.reduce((acc, chunk) => acc + chunk.length, 0));
+        let offset = 0;
+        for (const chunk of chunks) {
+          audioData.set(chunk, offset);
+          offset += chunk.length;
+        }
+      } else if (audio instanceof ArrayBuffer) {
+        // Handle as ArrayBuffer
+        console.log('Response is an ArrayBuffer');
+        audioData = new Uint8Array(audio);
+      } else if (audio instanceof Uint8Array) {
+        // Handle as Uint8Array
+        console.log('Response is a Uint8Array');
+        audioData = audio;
+      } else if (audio && typeof audio === 'object' && audio.buffer) {
+        // Handle as TypedArray
+        console.log('Response is a TypedArray');
+        audioData = new Uint8Array(audio.buffer);
+      } else {
+        // Try to convert to Uint8Array
+        console.log('Attempting to convert response to Uint8Array...');
+        audioData = new Uint8Array(audio);
+      }
+      
+      console.log('Audio data length:', audioData.length);
+      console.log('Audio data type:', audioData.constructor.name);
+      
+      // Create blob with correct MIME type
+      const audioBlob = new Blob([audioData], { type: 'audio/mpeg' });
+      console.log('Audio blob created, size:', audioBlob.size);
+      
+      const blobUrl = URL.createObjectURL(audioBlob);
+      console.log('Blob URL created:', blobUrl);
+      
+      return blobUrl;
     } catch (err) {
       console.error("ElevenLabs API hatası:", err);
       if (err.message.includes('API key') || err.message.includes('401')) {
@@ -665,18 +762,30 @@ export default function App() {
     if (playingId && playingId !== story.id) { audioRef.current.pause(); setPlayingId(null); }
     if (playingId === story.id) { audioRef.current.pause(); setPlayingId(null); return; }
     if (story.audioUrl) {
+      console.log('Playing existing audio URL:', story.audioUrl);
       audioRef.current.src = story.audioUrl;
-      audioRef.current.play().catch(e => console.error("Çalma hatası:", e));
+      audioRef.current.play().catch(e => {
+        console.error("Çalma hatası:", e);
+        setError(`Ses çalma hatası: ${e.message}`);
+      });
       setPlayingId(story.id);
     } else {
+      console.log('Synthesizing new audio for story:', story.id);
       setSynthesizingId(story.id);
       const url = await callElevenLabsAPI(story.content);
       setSynthesizingId(null);
       if (url) {
+        console.log('Audio synthesis successful, URL:', url);
         setStories(prev => prev.map(s => s.id === story.id ? { ...s, audioUrl: url } : s));
         audioRef.current.src = url;
-        audioRef.current.play().catch(e => console.error("Çalma hatası:", e));
+        audioRef.current.play().catch(e => {
+          console.error("Çalma hatası:", e);
+          setError(`Ses çalma hatası: ${e.message}`);
+        });
         setPlayingId(story.id);
+      } else {
+        console.error('Audio synthesis failed');
+        setError('Ses oluşturulamadı. Lütfen API ayarlarınızı kontrol edin.');
       }
     }
   };
