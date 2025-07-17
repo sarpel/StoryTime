@@ -56,7 +56,7 @@ After=network.target
 Type=simple
 User=$USER
 WorkingDirectory=$(pwd)
-ExecStart=/usr/bin/node server.js
+ExecStart=/usr/bin/npm run start
 Restart=always
 RestartSec=10
 Environment=NODE_ENV=production
