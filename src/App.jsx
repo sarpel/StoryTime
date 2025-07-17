@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 
 // --- Ikonlar ---
+// Arayüzde kullanılan SVG ikonları. Her bir ikon farklı bir işlevi temsil ediyor.
 const SparklesIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-yellow-300"><path d="M9.94 14.32c.32-.08.67-.04 1.02.11.4.18.82.43 1.28.74 1.14.78 2.48 1.26 3.91 1.26.41 0 .8-.07 1.17-.2.32-.12.6-.3.82-.54.23-.24.39-.54.46-.88.07-.33.07-.68.04-1.03-.09-.9-.37-1.78-.8-2.6-.43-.82-.98-1.58-1.64-2.24-.67-.67-1.43-1.22-2.25-1.65-.82-.43-1.7-.7-2.6-.8-.35-.04-.7-.04-1.03.03-.34.07-.68.22-.95.45-.27.23-.48.52-.63.85-.15.33-.22.7-.22,1.07,0,1.43.48,2.77,1.26,3.91.49.7.99,1.33,1.52,1.88"/></svg>;
 const BookOpenIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>;
 const PlayIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>;
@@ -37,6 +38,7 @@ const SettingsModal = ({ isOpen, onClose, settings, setSettings }) => {
     setSettings(prev => ({ ...prev, [category]: { ...prev[category], [key]: parseFloat(value) } }));
   };
 
+  // DÜZELTME: Hem Gemini hem de ElevenLabs verilerini çeken güncellenmiş fonksiyon.
   const handleFetchApiData = async () => {
     setIsFetching(true);
     setFetchError(null);
@@ -53,13 +55,16 @@ const SettingsModal = ({ isOpen, onClose, settings, setSettings }) => {
         fetch(geminiApiUrl)
       ]);
 
+      // ElevenLabs verilerini işle
       if (!voicesResponse.ok) throw new Error(`ElevenLabs sesleri alınamadı: ${voicesResponse.statusText}`);
       const voicesData = await voicesResponse.json();
       if (!elevenModelsResponse.ok) throw new Error(`ElevenLabs modelleri alınamadı: ${elevenModelsResponse.statusText}`);
       const elevenModelsData = await elevenModelsResponse.json();
 
+      // Gemini verilerini işle
       if (!geminiModelsResponse.ok) throw new Error(`Gemini modelleri alınamadı: ${geminiModelsResponse.statusText}`);
       const geminiData = await geminiModelsResponse.json();
+      // Sadece 'generateContent' metodunu destekleyen modelleri filtrele
       const compatibleGeminiModels = geminiData.models.filter(model =>
         model.supportedGenerationMethods.includes("generateContent")
       );
@@ -71,6 +76,7 @@ const SettingsModal = ({ isOpen, onClose, settings, setSettings }) => {
       });
 
     } catch (error) {
+      console.error("API Veri Çekme Hatası:", error);
       setFetchError(error.message);
     } finally {
       setIsFetching(false);
@@ -92,11 +98,12 @@ const SettingsModal = ({ isOpen, onClose, settings, setSettings }) => {
                 <label className="block text-sm font-medium text-gray-300 mb-1">Gemini API Key</label>
                 <input type="password" name="api.gemini" value={settings.api.gemini} onChange={handleInputChange} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:ring-purple-500 focus:border-purple-500"/>
               </div>
+              {/* DÜZELTME: Gemini Model Dropdown */}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">Gemini Modeli</label>
                 <select name="api.gemini_model_id" value={settings.api.gemini_model_id} onChange={handleInputChange} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:ring-purple-500 focus:border-purple-500">
                   {apiData.geminiModels.length === 0 ? (
-                    <option value="gemini-1.5-flash">gemini-1.5-flash (Varsayılan)</option>
+                    <option value="gemini-2.5-flash">gemini-2.5-flash (Varsayılan)</option>
                   ) : (
                     apiData.geminiModels.map(model => <option key={model.name} value={model.name.split('/')[1]}>{model.displayName}</option>)
                   )}
@@ -257,8 +264,9 @@ export default function App() {
   
   const [settings, setSettings] = useState(() => {
     const savedSettings = localStorage.getItem('ayarlar');
+    // DÜZELTME: Varsayılan Gemini modeli gemini-2.5-flash olarak güncellendi.
     const defaultSettings = {
-      api: { gemini: '', gemini_model_id: 'gemini-1.5-flash', elevenlabs: '', elevenlabs_model_id: 'eleven_multilingual_v2', elevenlabs_voice_id: 'xsGHrtxT5AdDzYXTQT0d' },
+      api: { gemini: '', gemini_model_id: 'gemini-2.5-flash', elevenlabs: '', elevenlabs_model_id: 'eleven_multilingual_v2', elevenlabs_voice_id: 'xsGHrtxT5AdDzYXTQT0d' },
       voice: { stability: 0.6, similarity_boost: 0.7 },
       generation: { duration: 5 }
     };
@@ -290,7 +298,8 @@ export default function App() {
     setError(null);
     try {
       if (!settings.api.gemini) throw new Error("Gemini API anahtarı Ayarlar panelinde tanımlanmamış.");
-      const model = settings.api.gemini_model_id || 'gemini-1.5-flash';
+      // DÜZELTME: Model ID artık ayarlardan dinamik olarak alınıyor.
+      const model = settings.api.gemini_model_id || 'gemini-2.5-flash';
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${settings.api.gemini}`;
       const payload = { contents: chatHistory, generationConfig: { responseMimeType: "application/json", responseSchema } };
       const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
