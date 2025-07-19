@@ -125,7 +125,7 @@ const SettingsModal = ({ isOpen, onClose, settings, setSettings, apiData, setApi
                   {!Array.isArray(apiData.elevenLabsModels) || apiData.elevenLabsModels.length === 0 ? (
                     <option value="">Modelleri yüklemek için "Sesleri ve Modelleri Çek" butonuna tıklayın</option>
                   ) : (
-                    apiData.elevenLabsModels.map(model => <option key={model.model_id} value={model.model_id}>{model.name}</option>)
+                    apiData.elevenLabsModels.map(model => <option key={model.modelId} value={model.modelId}>{model.name}</option>)
                   )}
                 </select>
               </div>
