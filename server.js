@@ -4,7 +4,6 @@ import path from 'path';
 import fs from 'fs';
 import cors from 'cors';
 import { fileURLToPath } from 'url';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
 import dotenv from 'dotenv';
 
@@ -276,20 +275,62 @@ app.post('/api/gemini', async (req, res) => {
     }
     
     try {
-      const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-      const modelName = modelId || 'gemini-2.5-flash';
-      const cleanModelName = modelName.replace('models/', '');
+      const modelName = modelId || 'gemini-1.5-flash';
+      // Clean the model name - remove spaces and ensure it's a valid model ID
+      const cleanModelName = modelName.replace(/\s+/g, '-').toLowerCase().replace('models/', '');
       
       console.log('Using model:', cleanModelName);
       console.log('API Key (first 10 chars):', GEMINI_API_KEY.substring(0, 10) + '...');
       
-      const model = genAI.getGenerativeModel({ model: cleanModelName });
-
-      const result = await model.generateContent(content);
-      const response = await result.response;
-      const responseText = response.text();
+      // Make direct API call to Google's Gemini endpoint
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModelName}:generateContent?key=${GEMINI_API_KEY}`;
       
-      console.log('✅ API call successful, response length:', responseText.length);
+      const requestBody = {
+        contents: [
+          {
+            parts: [
+              {
+                text: content
+              }
+            ]
+          }
+        ]
+      };
+      
+      console.log('📡 Making API call to:', apiUrl);
+      console.log('📡 Request body:', JSON.stringify(requestBody, null, 2));
+      
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody)
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ API response error:', response.status, errorText);
+        throw new Error(`API Error ${response.status}: ${errorText}`);
+      }
+      
+      const result = await response.json();
+      console.log('✅ API call successful, response:', JSON.stringify(result, null, 2));
+      
+      // Extract text from the response
+      let responseText = '';
+      if (result.candidates && result.candidates[0] && result.candidates[0].content) {
+        const parts = result.candidates[0].content.parts;
+        if (parts && parts.length > 0) {
+          responseText = parts[0].text || '';
+        }
+      }
+      
+      if (!responseText) {
+        throw new Error('No text content in API response');
+      }
+      
+      console.log('✅ Extracted response text length:', responseText.length);
       
       if (responseSchema) {
         try {
@@ -317,7 +358,7 @@ app.post('/api/gemini', async (req, res) => {
       res.json({ text: responseText });
     } catch (apiError) {
       console.error("Gemini API error:", apiError);
-      if (apiError.message.includes('API key') || apiError.message.includes('API anahtarı')) {
+      if (apiError.message.includes('API key') || apiError.message.includes('API anahtarı') || apiError.message.includes('403')) {
         res.status(400).json({ error: 'Geçersiz Gemini API anahtarı. Lütfen .env dosyasındaki API anahtarını kontrol edin.' });
       } else if (apiError.message.includes('network') || apiError.message.includes('fetch')) {
         res.status(500).json({ error: 'Ağ bağlantısı hatası. Lütfen internet bağlantınızı kontrol edin.' });
@@ -462,14 +503,57 @@ app.post('/api/elevenlabs/models', async (req, res) => {
 app.post('/api/gemini/models', async (req, res) => {
   console.log('🔍 Gemini models endpoint called');
   try {
-    // Return common models without API validation - simpler approach
-    const models = [
-      { name: 'gemini-2.5-flash', displayName: 'Gemini 2.5 Flash' },
-      { name: 'gemini-2.5-flash-lite-preview-06-17', displayName: 'Gemini 2.5 Flash Lite Preview' },
-    ];
+    // Check if API key is available in environment variables
+    if (!GEMINI_API_KEY || GEMINI_API_KEY.trim() === '') {
+      console.log('❌ No Gemini API key in environment variables');
+      return res.status(400).json({ error: 'Gemini API anahtarı eksik. Lütfen .env dosyasına geçerli bir API anahtarı ekleyin.' });
+    }
     
-    console.log('✅ Gemini models response:', models);
-    res.json({ models });
+    try {
+      // Make direct API call to Google's Gemini models endpoint
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_API_KEY}`;
+      
+      console.log('📡 Making API call to:', apiUrl);
+      
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ API response error:', response.status, errorText);
+        throw new Error(`API Error ${response.status}: ${errorText}`);
+      }
+      
+      const result = await response.json();
+      console.log('✅ API call successful, response:', JSON.stringify(result, null, 2));
+      
+      // Filter and format models
+      let models = [];
+      if (result.models && Array.isArray(result.models)) {
+        models = result.models
+          .filter(model => model.name && model.name.includes('gemini'))
+          .map(model => ({
+            name: model.name,
+            displayName: model.displayName || model.name.replace('models/', ''),
+            description: model.description || '',
+            supportedGenerationMethods: model.supportedGenerationMethods || []
+          }));
+      }
+      
+      console.log('✅ Filtered Gemini models:', models);
+      res.json({ models });
+    } catch (apiError) {
+      console.error("❌ Gemini models API error:", apiError);
+      if (apiError.message.includes('API key') || apiError.message.includes('403')) {
+        res.status(400).json({ error: 'Geçersiz Gemini API anahtarı. Lütfen .env dosyasındaki API anahtarını kontrol edin.' });
+      } else {
+        res.status(500).json({ error: `Gemini API hatası: ${apiError.message}` });
+      }
+    }
   } catch (error) {
     console.error('❌ Models endpoint error:', error);
     res.status(500).json({ error: 'Server error' });
