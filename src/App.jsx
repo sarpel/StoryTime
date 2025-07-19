@@ -140,7 +140,7 @@ const SettingsModal = ({ isOpen, onClose, settings, setSettings, apiData, setApi
                   {!Array.isArray(apiData.voices) || apiData.voices.length === 0 ? (
                     <option value="">Sesleri yüklemek için "Sesleri ve Modelleri Çek" butonuna tıklayın</option>
                   ) : (
-                    apiData.voices.map(voice => <option key={voice.voice_id} value={voice.voice_id}>{voice.name}</option>)
+                    apiData.voices.map(voice => <option key={voice.voiceId || voice.voice_id || voice.name} value={voice.voiceId || voice.voice_id}>{voice.name}</option>)
                   )}
                 </select>
               </div>
@@ -809,8 +809,15 @@ export default function App() {
           }
           const data = await res.json();
           console.log('📡 ElevenLabs voices raw response:', data);
-          // Server returns {voices: [...]} format, so we need to extract voices array
-          const voicesData = data.voices || [];
+          // Handle nested voices structure: {voices: {voices: [...]}}
+          let voicesData = [];
+          if (data.voices) {
+            if (Array.isArray(data.voices)) {
+              voicesData = data.voices;
+            } else if (data.voices.voices && Array.isArray(data.voices.voices)) {
+              voicesData = data.voices.voices;
+            }
+          }
           console.log('📡 ElevenLabs voices extracted:', voicesData);
           return { type: 'voices', data: voicesData };
         }),

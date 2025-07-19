@@ -377,55 +377,73 @@ app.post('/api/elevenlabs', async (req, res) => {
   try {
     const { text, voiceId, modelId, stability, similarityBoost } = req.body;
     
+    console.log('🔍 ElevenLabs TTS endpoint called');
+    console.log('📝 Text length:', text ? text.length : 0);
+    console.log('🎤 Voice ID:', voiceId);
+    console.log('🤖 Model ID:', modelId);
+    
     // Check if API key is available in environment variables
     if (!ELEVENLABS_API_KEY || ELEVENLABS_API_KEY.trim() === '') {
+      console.log('❌ No ElevenLabs API key found');
       return res.status(400).json({ error: 'ElevenLabs API anahtarı eksik. Lütfen .env dosyasına geçerli bir API anahtarı ekleyin.' });
     }
+    
+    console.log('🔑 ElevenLabs API key found (first 10 chars):', ELEVENLABS_API_KEY.substring(0, 10) + '...');
     
     try {
       const elevenlabs = new ElevenLabsClient({ apiKey: ELEVENLABS_API_KEY });
       
+      console.log('📡 Calling ElevenLabs textToSpeech.convert()...');
       const audio = await elevenlabs.textToSpeech.convert(
         voiceId || '21m00Tcm4TlvDq8ikWAM', // Default voice ID
         {
           text: text,
           modelId: modelId || 'eleven_multilingual_v2',
+          outputFormat: 'mp3_44100_128',
           voice_settings: {
             stability: stability || 0.6,
             similarity_boost: similarityBoost || 0.7
           }
         }
       );
+      
+      console.log('✅ ElevenLabs TTS response received');
+      console.log('🎵 Audio type:', typeof audio);
+      console.log('🎵 Audio constructor:', audio.constructor.name);
         
-        // Convert audio to base64 for transmission
-        let audioData;
-        if (audio instanceof ArrayBuffer) {
-          audioData = new Uint8Array(audio);
-        } else if (audio instanceof Uint8Array) {
-          audioData = audio;
-        } else if (audio && typeof audio === 'object' && audio.buffer) {
-          audioData = new Uint8Array(audio.buffer);
-        } else {
-          audioData = new Uint8Array(audio);
-        }
-        
-        const base64Audio = Buffer.from(audioData).toString('base64');
-        res.json({ audio: base64Audio, mimeType: 'audio/mpeg' });
-      } catch (apiError) {
-        console.error("ElevenLabs API error:", apiError);
-        if (apiError.message.includes('API key') || apiError.message.includes('API anahtarı') || apiError.message.includes('401')) {
-          res.status(400).json({ error: 'Geçersiz ElevenLabs API anahtarı. Lütfen .env dosyasındaki API anahtarını kontrol edin.' });
-        } else if (apiError.message.includes('network') || apiError.message.includes('fetch')) {
-          res.status(500).json({ error: 'Ağ bağlantısı hatası. Lütfen internet bağlantınızı kontrol edin.' });
-        } else {
-          res.status(500).json({ error: `ElevenLabs API hatası: ${apiError.message}` });
-        }
+      // Convert audio to base64 for transmission
+      let audioData;
+      if (audio instanceof ArrayBuffer) {
+        audioData = new Uint8Array(audio);
+      } else if (audio instanceof Uint8Array) {
+        audioData = audio;
+      } else if (audio && typeof audio === 'object' && audio.buffer) {
+        audioData = new Uint8Array(audio.buffer);
+      } else {
+        audioData = new Uint8Array(audio);
       }
-    } catch (error) {
-      console.error('ElevenLabs endpoint error:', error);
-      res.status(500).json({ error: 'Sunucu hatası' });
+      
+      console.log('🎵 Audio data length:', audioData.length);
+      
+      const base64Audio = Buffer.from(audioData).toString('base64');
+      console.log('🎵 Base64 audio length:', base64Audio.length);
+      
+      res.json({ audio: base64Audio, mimeType: 'audio/mpeg' });
+    } catch (apiError) {
+      console.error("❌ ElevenLabs API error:", apiError);
+      if (apiError.message.includes('API key') || apiError.message.includes('API anahtarı') || apiError.message.includes('401')) {
+        res.status(400).json({ error: 'Geçersiz ElevenLabs API anahtarı. Lütfen .env dosyasındaki API anahtarını kontrol edin.' });
+      } else if (apiError.message.includes('network') || apiError.message.includes('fetch')) {
+        res.status(500).json({ error: 'Ağ bağlantısı hatası. Lütfen internet bağlantınızı kontrol edin.' });
+      } else {
+        res.status(500).json({ error: `ElevenLabs API hatası: ${apiError.message}` });
+      }
     }
-  });
+  } catch (error) {
+    console.error('❌ ElevenLabs endpoint error:', error);
+    res.status(500).json({ error: 'Sunucu hatası' });
+  }
+});
 
 // Fetch ElevenLabs voices
 app.post('/api/elevenlabs/voices', async (req, res) => {
@@ -441,19 +459,16 @@ app.post('/api/elevenlabs/voices', async (req, res) => {
     
     try {
       const elevenlabs = new ElevenLabsClient({ apiKey: ELEVENLABS_API_KEY });
-      console.log('📡 Calling ElevenLabs voices.search()...');
-      const voices = await elevenlabs.voices.search();
+      console.log('📡 Calling ElevenLabs voices.getAll()...');
+      const voices = await elevenlabs.voices.getAll();
       console.log('✅ ElevenLabs voices response:', voices);
       console.log('📊 Voices count:', voices.length);
-      console.log('🎤 First voice:', voices[0]);
+      if (voices.length > 0) {
+        console.log('🎤 First voice:', voices[0]);
+      }
       
       // Return voices wrapped in an object to match frontend expectations
-      // Check if voices already has a nested structure
-      if (voices && typeof voices === 'object' && voices.voices) {
-        res.json({ voices: voices.voices });
-      } else {
-        res.json({ voices });
-      }
+      res.json({ voices });
     } catch (apiError) {
       console.error("❌ ElevenLabs voices API error:", apiError);
       if (apiError.message.includes('API key') || apiError.message.includes('401')) {
@@ -470,23 +485,29 @@ app.post('/api/elevenlabs/voices', async (req, res) => {
 
 // Fetch ElevenLabs models
 app.post('/api/elevenlabs/models', async (req, res) => {
+  console.log('🔍 ElevenLabs models endpoint called');
   try {
     // Check if API key is available in environment variables
     if (!ELEVENLABS_API_KEY || ELEVENLABS_API_KEY.trim() === '') {
+      console.log('❌ No ElevenLabs API key found');
       return res.status(400).json({ error: 'ElevenLabs API anahtarı eksik. Lütfen .env dosyasına geçerli bir API anahtarı ekleyin.' });
     }
     
+    console.log('🔑 ElevenLabs API key found (first 10 chars):', ELEVENLABS_API_KEY.substring(0, 10) + '...');
+    
     try {
       const elevenlabs = new ElevenLabsClient({ apiKey: ELEVENLABS_API_KEY });
-      // Return common models without API validation - simpler approach
-      const models = [
-        { model_id: 'eleven_multilingual_v2', name: 'Eleven Multilingual v2' },
-        { model_id: 'eleven_monolingual_v1', name: 'Eleven Monolingual v1' },
-        { model_id: 'eleven_turbo_v2', name: 'Eleven Turbo v2' }
-      ];
+      console.log('📡 Calling ElevenLabs models.list()...');
+      const models = await elevenlabs.models.list();
+      console.log('✅ ElevenLabs models response:', models);
+      console.log('📊 Models count:', models.length);
+      if (models.length > 0) {
+        console.log('🎯 First model:', models[0]);
+      }
+      
       res.json({ models });
     } catch (apiError) {
-      console.error("ElevenLabs models API error:", apiError);
+      console.error("❌ ElevenLabs models API error:", apiError);
       if (apiError.message.includes('API key') || apiError.message.includes('401')) {
         res.status(400).json({ error: 'Geçersiz ElevenLabs API anahtarı. Lütfen .env dosyasındaki API anahtarını kontrol edin.' });
       } else {
@@ -494,7 +515,7 @@ app.post('/api/elevenlabs/models', async (req, res) => {
       }
     }
   } catch (error) {
-    console.error('ElevenLabs models endpoint error:', error);
+    console.error('❌ ElevenLabs models endpoint error:', error);
     res.status(500).json({ error: 'Sunucu hatası' });
   }
 });
