@@ -1,6 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { GoogleGenAI } from "@google/genai";
-import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
 
 // --- Ikonlar ---
 // Arayüzde kullanılan SVG ikonları. Her bir ikon farklı bir işlevi temsil ediyor.
@@ -21,24 +19,11 @@ const CustomXIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" hei
 
 // --- Bileşenler (Components) ---
 
-const SettingsModal = ({ isOpen, onClose, settings, setSettings }) => {
+const SettingsModal = ({ isOpen, onClose, settings, setSettings, apiData, setApiData, isFetching, fetchError, onFetchApiData }) => {
   if (!isOpen) return null;
 
-  const [apiData, setApiData] = useState({ voices: [], elevenLabsModels: [], geminiModels: [] });
-  const [isFetching, setIsFetching] = useState(false);
-  const [fetchError, setFetchError] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
-
-  // Reset form when modal opens to ensure it shows current settings
-  useEffect(() => {
-    if (isOpen) {
-      // Force re-render of form fields with current settings
-      setApiData({ voices: [], elevenLabsModels: [], geminiModels: [] });
-      setFetchError(null);
-      setSaveMessage('');
-    }
-  }, [isOpen]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -52,63 +37,18 @@ const SettingsModal = ({ isOpen, onClose, settings, setSettings }) => {
     setSettings(prev => ({ ...prev, [category]: { ...prev[category], [key]: parseFloat(value) } }));
   };
 
-  // DÜZELTME: Hem Gemini hem de ElevenLabs verilerini çeken güncellenmiş fonksiyon.
-  const handleFetchApiData = async () => {
-    setIsFetching(true);
-    setFetchError(null);
-    try {
-      if (!settings.api.elevenlabs) {
-        throw new Error("Lütfen önce ElevenLabs API anahtarınızı girin.");
-      }
 
-      const elevenLabsHeaders = { 'xi-api-key': settings.api.elevenlabs };
-
-      const [voicesResponse, elevenModelsResponse] = await Promise.all([
-        fetch('https://api.elevenlabs.io/v1/voices', { headers: elevenLabsHeaders }),
-        fetch('https://api.elevenlabs.io/v1/models', { headers: elevenLabsHeaders })
-      ]);
-
-      // ElevenLabs verilerini işle
-      if (!voicesResponse.ok) throw new Error(`ElevenLabs sesleri alınamadı: ${voicesResponse.statusText}`);
-      const voicesData = await voicesResponse.json();
-      if (!elevenModelsResponse.ok) throw new Error(`ElevenLabs modelleri alınamadı: ${elevenModelsResponse.statusText}`);
-      const elevenModelsData = await elevenModelsResponse.json();
-
-      // Gemini modelleri için sabit bir liste kullanıyoruz, çünkü GoogleGenAI kütüphanesi modelleri otomatik olarak yönetiyor.
-      // API'den dinamik olarak çekmek, basit bir frontend uygulaması için gereksiz karmaşıklık yaratır.
-      const defaultGeminiModels = [
-        { name: 'models/gemini-2.5-flash', displayName: 'Gemini 2.5 Flash (Varsayılan)' },
-        { name: 'models/gemini-1.5-flash', displayName: 'Gemini 1.5 Flash' },
-        { name: 'models/gemini-1.5-pro', displayName: 'Gemini 1.5 Pro' }
-      ];
-
-      setApiData({ 
-        voices: voicesData.voices, 
-        elevenLabsModels: elevenModelsData,
-        geminiModels: defaultGeminiModels // Gemini modellerini sabit listeden ayarla
-      });
-
-    } catch (error) {
-      console.error("API Veri Çekme Hatası:", error);
-      setFetchError(error.message);
-    } finally {
-      setIsFetching(false);
-    }
-  };
 
   const handleSaveSettings = async () => {
     setIsSaving(true);
     setSaveMessage('');
     
     try {
-      console.log('Saving settings to localStorage...');
       // Save to localStorage first
       localStorage.setItem('ayarlar', JSON.stringify(settings));
-      console.log('Settings saved to localStorage successfully');
       
       // Try to save to backend
-      console.log('Attempting to save settings to backend...');
-      const response = await fetch('/api/settings', {
+              const response = await fetch('/api/settings', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -117,11 +57,10 @@ const SettingsModal = ({ isOpen, onClose, settings, setSettings }) => {
         body: JSON.stringify(settings)
       });
       
-      console.log('Backend response status:', response.status);
+      
       
       if (response.ok) {
         const result = await response.json();
-        console.log('Backend save successful:', result);
         setSaveMessage('✅ Ayarlar başarıyla kaydedildi! (Backend + Tarayıcı)');
         setTimeout(() => setSaveMessage(''), 3000);
       } else {
@@ -135,7 +74,7 @@ const SettingsModal = ({ isOpen, onClose, settings, setSettings }) => {
       // Always ensure localStorage is saved even if backend fails
       try {
         localStorage.setItem('ayarlar', JSON.stringify(settings));
-        console.log('Settings saved to localStorage as fallback');
+
       } catch (localError) {
         console.error('localStorage save failed:', localError);
       }
@@ -164,28 +103,27 @@ const SettingsModal = ({ isOpen, onClose, settings, setSettings }) => {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">Gemini API Key</label>
-                <input type="password" name="api.gemini" value={settings.api.gemini || ''} onChange={handleInputChange} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:ring-purple-500 focus:border-purple-500"/>
+                <input type="text" name="api.gemini" value={settings.api.gemini || ''} onChange={handleInputChange} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:ring-purple-500 focus:border-purple-500"/>
               </div>
-              {/* DÜZELTME: Gemini Model Dropdown */}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">Gemini Modeli</label>
-                <select name="api.gemini_model_id" value={settings.api.gemini_model_id || 'gemini-2.5-flash'} onChange={handleInputChange} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:ring-purple-500 focus:border-purple-500">
-                  {apiData.geminiModels.length === 0 ? (
-                    <option value="gemini-2.5-flash">gemini-2.5-flash (Varsayılan)</option>
+                <select name="api.gemini_model_id" value={settings.api.gemini_model_id || ''} onChange={handleInputChange} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:ring-purple-500 focus:border-purple-500">
+                  {!Array.isArray(apiData.geminiModels) || apiData.geminiModels.length === 0 ? (
+                    <option value="">Modelleri yüklemek için "Sesleri ve Modelleri Çek" butonuna tıklayın</option>
                   ) : (
-                    apiData.geminiModels.map(model => <option key={model.name} value={model.name.split('/')[1]}>{model.displayName}</option>)
+                    apiData.geminiModels.map(model => <option key={model.name} value={model.name}>{model.displayName}</option>)
                   )}
                 </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">ElevenLabs API Key</label>
-                <input type="password" name="api.elevenlabs" value={settings.api.elevenlabs || ''} onChange={handleInputChange} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:ring-purple-500 focus:border-purple-500"/>
+                <input type="text" name="api.elevenlabs" value={settings.api.elevenlabs || ''} onChange={handleInputChange} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:ring-purple-500 focus:border-purple-500"/>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">ElevenLabs Model ID</label>
-                <select name="api.elevenlabs_model_id" value={settings.api.elevenlabs_model_id || 'eleven_multilingual_v2'} onChange={handleInputChange} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:ring-purple-500 focus:border-purple-500">
-                  {apiData.elevenLabsModels.length === 0 ? (
-                    <option value="eleven_multilingual_v2">eleven_multilingual_v2 (Varsayılan)</option>
+                <select name="api.elevenlabs_model_id" value={settings.api.elevenlabs_model_id || ''} onChange={handleInputChange} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:ring-purple-500 focus:border-purple-500">
+                  {!Array.isArray(apiData.elevenLabsModels) || apiData.elevenLabsModels.length === 0 ? (
+                    <option value="">Modelleri yüklemek için "Sesleri ve Modelleri Çek" butonuna tıklayın</option>
                   ) : (
                     apiData.elevenLabsModels.map(model => <option key={model.model_id} value={model.model_id}>{model.name}</option>)
                   )}
@@ -195,22 +133,47 @@ const SettingsModal = ({ isOpen, onClose, settings, setSettings }) => {
                 <label className="block text-sm font-medium text-gray-300 mb-1">ElevenLabs Voice ID</label>
                 <select
                   name="api.elevenlabs_voice_id"
-                  value={settings.api.elevenlabs_voice_id || 'xsGHrtxT5AdDzYXTQT0d'} // Varsayılan değeri koruyarak birleştirildi
+                  value={settings.api.elevenlabs_voice_id || ''}
                   onChange={handleInputChange}
                   className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:ring-purple-500 focus:border-purple-500"
                 >
-                  {apiData.voices.length === 0 ? (
-                    <option value="xsGHrtxT5AdDzYXTQT0d">Gönül Filiz (Varsayılan)</option>
+                  {!Array.isArray(apiData.voices) || apiData.voices.length === 0 ? (
+                    <option value="">Sesleri yüklemek için "Sesleri ve Modelleri Çek" butonuna tıklayın</option>
                   ) : (
                     apiData.voices.map(voice => <option key={voice.voice_id} value={voice.voice_id}>{voice.name}</option>)
                   )}
                 </select>
               </div>
               <div className="pt-2">
-                <button onClick={handleFetchApiData} disabled={isFetching} className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:bg-blue-900">
+                <button onClick={onFetchApiData} disabled={isFetching} className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:bg-blue-900">
                   {isFetching ? <LoaderIcon /> : <DownloadCloudIcon />} Sesleri ve Modelleri Çek
                 </button>
                 {fetchError && <p className="text-red-400 text-sm mt-2">{fetchError}</p>}
+                {!fetchError && !isFetching && (apiData.geminiModels.length > 0 || apiData.voices.length > 0 || apiData.elevenLabsModels.length > 0) && (
+                  <p className="text-green-400 text-sm mt-2">✅ Veriler başarıyla yüklendi!</p>
+                )}
+                
+                {/* Veri durumu gösterimi */}
+                <div className="mt-3 p-2 bg-gray-800/50 rounded text-xs text-gray-300">
+                  <div className="flex justify-between items-center">
+                    <span>Gemini Modelleri:</span>
+                    <span className={apiData.geminiModels.length > 0 ? 'text-green-400' : 'text-red-400'}>
+                      {apiData.geminiModels.length} adet
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span>ElevenLabs Sesleri:</span>
+                    <span className={apiData.voices.length > 0 ? 'text-green-400' : 'text-red-400'}>
+                      {apiData.voices.length} adet
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span>ElevenLabs Modelleri:</span>
+                    <span className={apiData.elevenLabsModels.length > 0 ? 'text-green-400' : 'text-red-400'}>
+                      {apiData.elevenLabsModels.length} adet
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -249,11 +212,9 @@ const SettingsModal = ({ isOpen, onClose, settings, setSettings }) => {
           <div className="flex justify-end space-x-4 pt-4">
             <button 
               onClick={async () => {
-                console.log('Testing backend connection...');
                 try {
                   const response = await fetch('/api/health');
                   const result = await response.json();
-                  console.log('Backend health check:', result);
                   alert(`Backend bağlantısı: ${response.ok ? '✅ Çalışıyor' : '❌ Hata'}\n${JSON.stringify(result, null, 2)}`);
                 } catch (error) {
                   console.error('Backend test failed:', error);
@@ -396,21 +357,63 @@ export default function App() {
   const [stories, setStories] = useState([]);
   const [isLoadingStories, setIsLoadingStories] = useState(true);
   
+  // API data state'i eklendi - localStorage'dan yükle
+  const [apiData, setApiData] = useState(() => {
+    const savedApiData = localStorage.getItem('apiData');
+    if (savedApiData) {
+      try {
+        const parsed = JSON.parse(savedApiData);
+        return {
+          geminiModels: Array.isArray(parsed.geminiModels) ? parsed.geminiModels : [],
+          voices: Array.isArray(parsed.voices) ? parsed.voices : [],
+          elevenLabsModels: Array.isArray(parsed.elevenLabsModels) ? parsed.elevenLabsModels : []
+        };
+      } catch (error) {
+        console.error('Error parsing saved apiData:', error);
+      }
+    }
+    return {
+      geminiModels: [],
+      voices: [],
+      elevenLabsModels: []
+    };
+  });
+  const [isFetching, setIsFetching] = useState(false);
+  const [fetchError, setFetchError] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState('');
+  
   const [settings, setSettings] = useState(() => {
     const savedSettings = localStorage.getItem('ayarlar');
-    // DÜZELTME: Varsayılan Gemini modeli gemini-2.5-flash olarak güncellendi.
     const defaultSettings = {
       api: { 
-        gemini: '', // User must enter their own valid API key
+        gemini: 'APIAIzaSyDCnI6rlJbgdiS0eB6npXY1wYdlxxY9rUM', 
         gemini_model_id: 'gemini-2.5-flash', 
-        elevenlabs: '', // User must enter their own valid API key
+        elevenlabs: 'sk_61a1d13cb2aa07c110dbcdcb548b349094a6d5f1f74375c0', 
         elevenlabs_model_id: 'eleven_multilingual_v2', 
         elevenlabs_voice_id: 'xsGHrtxT5AdDzYXTQT0d' 
       },
       voice: { stability: 0.6, similarity_boost: 0.7 },
       generation: { duration: 5 }
     };
-    return savedSettings ? JSON.parse(savedSettings) : defaultSettings;
+    
+    if (savedSettings) {
+      try {
+        const parsed = JSON.parse(savedSettings);
+        // Merge with defaults to ensure all required fields exist
+        return {
+          ...defaultSettings,
+          ...parsed,
+          api: { ...defaultSettings.api, ...parsed.api },
+          voice: { ...defaultSettings.voice, ...parsed.voice },
+          generation: { ...defaultSettings.generation, ...parsed.generation }
+        };
+      } catch (error) {
+        console.error('Error parsing saved settings:', error);
+        return defaultSettings;
+      }
+    }
+    return defaultSettings;
   });
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -422,36 +425,88 @@ export default function App() {
 
   useEffect(() => { localStorage.setItem('ayarlar', JSON.stringify(settings)); }, [settings]);
   
+  // Save apiData to localStorage when it changes - improved version
+  useEffect(() => { 
+    if (apiData) {
+      const hasData = apiData.geminiModels.length > 0 || apiData.voices.length > 0 || apiData.elevenLabsModels.length > 0;
+      if (hasData) {
+        try {
+          localStorage.setItem('apiData', JSON.stringify(apiData));
+          console.log('apiData saved to localStorage:', {
+            geminiModels: apiData.geminiModels.length,
+            voices: apiData.voices.length,
+            elevenLabsModels: apiData.elevenLabsModels.length
+          });
+        } catch (error) {
+          console.error('Error saving apiData to localStorage:', error);
+        }
+      }
+    }
+  }, [apiData]);
+  
   // Load settings from backend on component mount
   useEffect(() => {
     const loadSettings = async () => {
-      console.log('Loading settings from backend...');
       try {
         const response = await fetch('/api/settings');
-        console.log('Backend settings response status:', response.status);
         
         if (response.ok) {
           const backendSettings = await response.json();
-          console.log('Backend settings loaded:', backendSettings);
-          
           if (backendSettings && Object.keys(backendSettings).length > 0) {
-            setSettings(backendSettings);
+            // Merge backend settings with current settings to ensure all fields exist
+            setSettings(prev => ({
+              ...prev,
+              ...backendSettings,
+              api: { ...prev.api, ...backendSettings.api },
+              voice: { ...prev.voice, ...backendSettings.voice },
+              generation: { ...prev.generation, ...backendSettings.generation }
+            }));
             localStorage.setItem('ayarlar', JSON.stringify(backendSettings));
-            console.log('Settings updated from backend');
           } else {
-            console.log('No settings found in backend, using localStorage');
+            // No settings found in backend, using localStorage
           }
         } else {
-          console.log('Backend settings load failed, using localStorage');
+          // Backend settings load failed, using localStorage
         }
       } catch (error) {
         console.error('Settings load error:', error);
-        console.log('Using localStorage settings as fallback');
+        // Using localStorage settings as fallback
         // Continue with localStorage settings if backend fails
       }
     };
     
     loadSettings();
+  }, []);
+  
+  // Load API data from localStorage on component mount - improved version
+  useEffect(() => {
+    const loadApiData = () => {
+      const savedApiData = localStorage.getItem('apiData');
+      if (savedApiData) {
+        try {
+          const parsed = JSON.parse(savedApiData);
+          if (parsed && (parsed.geminiModels?.length > 0 || parsed.voices?.length > 0 || parsed.elevenLabsModels?.length > 0)) {
+            const loadedData = {
+              geminiModels: Array.isArray(parsed.geminiModels) ? parsed.geminiModels : [],
+              voices: Array.isArray(parsed.voices) ? parsed.voices : [],
+              elevenLabsModels: Array.isArray(parsed.elevenLabsModels) ? parsed.elevenLabsModels : []
+            };
+            setApiData(loadedData);
+            console.log('API data loaded from localStorage:', {
+              geminiModels: loadedData.geminiModels.length,
+              voices: loadedData.voices.length,
+              elevenLabsModels: loadedData.elevenLabsModels.length
+            });
+          }
+        } catch (error) {
+          console.error('Error loading apiData from localStorage:', error);
+        }
+      } else {
+        console.log('No saved apiData found in localStorage');
+      }
+    };
+    
+    loadApiData();
   }, []);
   
   // Load stories from backend on component mount
@@ -503,10 +558,10 @@ export default function App() {
       setPlayingId(null);
     };
     const handleLoadStart = () => {
-      console.log('Audio loading started');
+      // Audio loading started
     };
     const handleCanPlay = () => {
-      console.log('Audio can play');
+      // Audio can play
     };
     
     audio.addEventListener('ended', handleEnded);
@@ -526,92 +581,28 @@ export default function App() {
     setIsLoading(true);
     setError(null);
     try {
-      if (!settings.api.gemini) {
-        throw new Error("Gemini API anahtarı eksik. Lütfen ayarlar panelinden geçerli bir API anahtarı girin.");
-      }
-      
-      const ai = new GoogleGenAI(settings.api.gemini);
-      const modelName = settings.api.gemini_model_id || 'gemini-2.5-flash';
-      // The GoogleGenAI client library handles the full model name (e.g., "models/gemini-2.5-flash")
-      // so we ensure it's in the correct format.
-      const model = ai.getGenerativeModel({ model: modelName.startsWith('models/') ? modelName : `models/${modelName}` });
-      
-      const generationConfig = {};
-      // Apply thinkingConfig only for Gemini 2.5 models if supported by the library/API
-      if (modelName.includes('2.5')) {
-          generationConfig.thinkingConfig = {
-              thinkingBudget: 1 // Enable thinking
-          };
-      }
-      
-      const chatHistory = [
-        { role: 'user', parts: [{ text: content }] }
-      ];
+      const response = await fetch('/api/gemini', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          content,
+          responseSchema,
+          modelId: settings.api.gemini_model_id
+        })
+      });
 
-      let response;
-      if (responseSchema) {
-        // If a schema is provided, try to enforce JSON output
-        response = await model.generateContent({
-          contents: chatHistory,
-          generationConfig: {
-            ...generationConfig,
-            responseMimeType: "application/json"
-          }
-        });
-      } else {
-        // Otherwise, generate regular text content
-        response = await model.generateContent({
-          contents: chatHistory,
-          generationConfig: generationConfig
-        });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Gemini API hatası');
       }
 
-      const responseText = response.response.text();
-      
-      console.log('Raw API response:', responseText);
-      
-      // If we're expecting JSON response, try to parse it
-      if (responseSchema) {
-        try {
-          // Try to extract JSON from the response if it's wrapped in other text
-          const jsonMatch = responseText.match(/\{.*\}/s);
-          if (jsonMatch) {
-            const parsed = JSON.parse(jsonMatch[0]);
-            console.log('Parsed JSON response:', parsed);
-            return parsed;
-          } else {
-            // If no JSON found, try parsing the entire response
-            const parsed = JSON.parse(responseText);
-            console.log('Parsed full response as JSON:', parsed);
-            return parsed;
-          }
-        } catch (parseError) {
-          console.error("JSON parse error:", parseError);
-          console.log("Response text that failed to parse:", responseText);
-          
-          // For idea suggestions, if JSON parsing fails, try to extract a title from the text
-          if (responseSchema.properties && responseSchema.properties.title) {
-            const lines = responseText.split('\n').filter(line => line.trim());
-            const firstLine = lines[0]?.trim();
-            if (firstLine && firstLine.length > 0) {
-              return { title: firstLine };
-            }
-          }
-          
-          // If all else fails, return the raw text with a default structure
-          return { title: "Masal", story: responseText };
-        }
-      }
-      
-      // For regular text responses, return the text directly
-      return responseText;
+      const result = await response.json();
+      return result;
     } catch (err) {
       console.error("Gemini API hatası:", err);
-      if (err.message.includes('API key')) {
-        setError("Geçersiz Gemini API anahtarı. Lütfen ayarlar panelinden doğru API anahtarını girin.");
-      } else {
-        setError(`Gemini API hatası: ${err.message}`);
-      }
+      setError(err.message);
       return null;
     } finally {
       setIsLoading(false);
@@ -621,88 +612,43 @@ export default function App() {
   const callElevenLabsAPI = async (text) => {
     setError(null);
     try {
-      if (!settings.api.elevenlabs) {
-        throw new Error("ElevenLabs API anahtarı eksik. Lütfen ayarlar panelinden geçerli bir API anahtarı girin.");
-      }
-      
-      const elevenlabs = new ElevenLabsClient({ apiKey: settings.api.elevenlabs });
-      
-      console.log('ElevenLabs API çağrısı başlatılıyor...');
-      console.log('Voice ID:', settings.api.elevenlabs_voice_id);
-      console.log('Model ID:', settings.api.elevenlabs_model_id);
-      console.log('Text length:', text.length);
-      
-      // Use the correct SDK method with proper parameters
-      const audio = await elevenlabs.textToSpeech.convert(settings.api.elevenlabs_voice_id, {
-        text: text,
-        modelId: settings.api.elevenlabs_model_id || 'eleven_multilingual_v2',
-        outputFormat: 'mp3_44100_128',
-        voiceSettings: {
-          stability: settings.voice.stability || 0.6,
-          similarityBoost: settings.voice.similarity_boost || 0.7
-        }
+      const response = await fetch('/api/elevenlabs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text,
+          voiceId: settings.api.elevenlabs_voice_id,
+          modelId: settings.api.elevenlabs_model_id,
+          stability: settings.voice.stability,
+          similarityBoost: settings.voice.similarity_boost
+        })
       });
 
-      console.log('ElevenLabs API response type:', typeof audio);
-      console.log('ElevenLabs API response:', audio);
-      
-      // Check if response is a stream or buffer
-      let audioData;
-      if (audio && typeof audio === 'object' && audio[Symbol.asyncIterator]) {
-        // Handle as stream
-        console.log('Response is a stream, collecting chunks...');
-        const chunks = [];
-        for await (const chunk of audio) {
-          chunks.push(chunk);
-        }
-        audioData = new Uint8Array(chunks.reduce((acc, chunk) => acc + chunk.length, 0));
-        let offset = 0;
-        for (const chunk of chunks) {
-          audioData.set(chunk, offset);
-          offset += chunk.length;
-        }
-      } else if (audio instanceof ArrayBuffer) {
-        // Handle as ArrayBuffer
-        console.log('Response is an ArrayBuffer');
-        audioData = new Uint8Array(audio);
-      } else if (audio instanceof Uint8Array) {
-        // Handle as Uint8Array
-        console.log('Response is a Uint8Array');
-        audioData = audio;
-      } else if (audio && typeof audio === 'object' && audio.buffer) {
-        // Handle as TypedArray
-        console.log('Response is a TypedArray');
-        audioData = new Uint8Array(audio.buffer);
-      } else {
-        // Try to convert to Uint8Array
-        console.log('Attempting to convert response to Uint8Array...');
-        audioData = new Uint8Array(audio);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'ElevenLabs API hatası');
       }
+
+      const result = await response.json();
       
-      console.log('Audio data length:', audioData.length);
-      console.log('Audio data type:', audioData.constructor.name);
-      
-      // Create blob with correct MIME type
-      const audioBlob = new Blob([audioData], { type: 'audio/mpeg' });
-      console.log('Audio blob created, size:', audioBlob.size);
-      
+      // Convert base64 audio back to blob
+      const audioData = Uint8Array.from(atob(result.audio), c => c.charCodeAt(0));
+      const audioBlob = new Blob([audioData], { type: result.mimeType || 'audio/mpeg' });
       const blobUrl = URL.createObjectURL(audioBlob);
-      console.log('Blob URL created:', blobUrl);
       
       return blobUrl;
     } catch (err) {
       console.error("ElevenLabs API hatası:", err);
-      if (err.message.includes('API key') || err.message.includes('401')) {
-        setError("Geçersiz ElevenLabs API anahtarı. Lütfen ayarlar panelinden doğru API anahtarını girin.");
-      } else {
-        setError(`ElevenLabs API hatası: ${err.message}`);
-      }
+      setError(err.message);
       return null;
     }
   };
 
   const handleGenerateStory = async () => {
     if (!prompt) { setError("Lütfen bir masal konusu girin."); return; }
+    
     const systemPrompt = `Sen, 5 yaşındaki Türk kız çocukları için sevecen bir masalcısın. Masalların her zaman olumlu, öğretici ve güvenli olmalı. Şiddet, korku veya olumsuz içeriklerden kaçınmalısın. Masallar Türkçe ve akıcı bir dille yazılmalı. Her masalın sonunda genellikle küçük bir ders veya iyi bir duygu bırakmalı. Kullanıcının isteğine göre, yaklaşık ${settings.generation.duration} dakika sürecek bir masal oluştur ve ilgi çekici bir başlık bul. Yanıtını şu JSON formatında ver: {"title": "Masal Başlığı", "story": "Masal içeriği"}`;
     const content = `${systemPrompt}\n\nİstek: "${prompt}"`;
     const schema = { type: "OBJECT", properties: { "title": { "type": "STRING" }, "story": { "type": "STRING" } }, required: ["title", "story"] };
@@ -736,6 +682,7 @@ export default function App() {
   };
 
   const handleSuggestIdea = async (virtue, detail) => {
+
     const systemPrompt = `Sen, 5 yaşındaki Türk kız çocukları için sevecen bir masalcısın. Masalların her zaman olumlu, öğretici ve güvenli olmalı. Şiddet, korku veya olumsuz içeriklerden kaçınmalısın. Masallar Türkçe ve akıcı bir dille yazılmalı. Her masalın sonunda genellikle küçük bir ders veya iyi bir duygu bırakmalı.`;
     
     const ideaPrompt = virtue 
@@ -745,9 +692,7 @@ export default function App() {
     const schema = { type: "OBJECT", properties: { "title": { "type": "STRING" } }, required: ["title"] };
     const result = await callGeminiAPI(ideaPrompt, schema);
     
-    console.log('API Response for idea suggestion:', result);
-    
-    if (result && result.title) {
+          if (result && result.title) {
       setPrompt(result.title);
     } else if (result && typeof result === 'string') {
       // If the API returns just a string, use it directly
@@ -762,21 +707,18 @@ export default function App() {
     if (playingId && playingId !== story.id) { audioRef.current.pause(); setPlayingId(null); }
     if (playingId === story.id) { audioRef.current.pause(); setPlayingId(null); return; }
     if (story.audioUrl) {
-      console.log('Playing existing audio URL:', story.audioUrl);
       audioRef.current.src = story.audioUrl;
       audioRef.current.play().catch(e => {
         console.error("Çalma hatası:", e);
         setError(`Ses çalma hatası: ${e.message}`);
       });
       setPlayingId(story.id);
-    } else {
-      console.log('Synthesizing new audio for story:', story.id);
-      setSynthesizingId(story.id);
+          } else {
+        setSynthesizingId(story.id);
       const url = await callElevenLabsAPI(story.content);
       setSynthesizingId(null);
-      if (url) {
-        console.log('Audio synthesis successful, URL:', url);
-        setStories(prev => prev.map(s => s.id === story.id ? { ...s, audioUrl: url } : s));
+              if (url) {
+          setStories(prev => prev.map(s =>  s.id === story.id ? { ...s, audioUrl: url } : s));
         audioRef.current.src = url;
         audioRef.current.play().catch(e => {
           console.error("Çalma hatası:", e);
@@ -823,6 +765,134 @@ export default function App() {
     setStories(prev => prev.map(s => s.id === id ? { ...s, read: newReadStatus } : s));
   };
 
+  const handleFetchApiData = async () => {
+    setIsFetching(true);
+    setFetchError(null);
+    console.log('🔍 Starting API data fetch...');
+    try {
+      const promises = [];
+      
+      // Fetch Gemini models (no API key needed, backend uses .env)
+      console.log('📡 Fetching Gemini models...');
+      promises.push(
+        fetch('/api/gemini/models', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        }).then(async res => {
+          console.log('📡 Gemini models response status:', res.status);
+          if (!res.ok) {
+            const error = await res.json();
+            console.error('❌ Gemini models error:', error);
+            throw new Error(`Gemini modelleri alınamadı: ${error.error}`);
+          }
+          const data = await res.json();
+          console.log('📡 Gemini models raw response:', data);
+          // Server returns {models: [...]} format, so we need to extract models array
+          const modelsData = data.models || [];
+          console.log('📡 Gemini models extracted:', modelsData);
+          return { type: 'gemini', data: modelsData };
+        })
+      );
+      
+      // Fetch ElevenLabs data (no API key needed, backend uses .env)
+      console.log('📡 Fetching ElevenLabs voices...');
+      promises.push(
+        fetch('/api/elevenlabs/voices', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        }).then(async res => {
+          console.log('📡 ElevenLabs voices response status:', res.status);
+          if (!res.ok) {
+            const error = await res.json();
+            console.error('❌ ElevenLabs voices error:', error);
+            throw new Error(`ElevenLabs sesleri alınamadı: ${error.error}`);
+          }
+          const data = await res.json();
+          console.log('📡 ElevenLabs voices raw response:', data);
+          // Server returns {voices: [...]} format, so we need to extract voices array
+          const voicesData = data.voices || [];
+          console.log('📡 ElevenLabs voices extracted:', voicesData);
+          return { type: 'voices', data: voicesData };
+        }),
+        fetch('/api/elevenlabs/models', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        }).then(async res => {
+          console.log('📡 ElevenLabs models response status:', res.status);
+          if (!res.ok) {
+            const error = await res.json();
+            console.error('❌ ElevenLabs models error:', error);
+            throw new Error(`ElevenLabs modelleri alınamadı: ${error.error}`);
+          }
+          const data = await res.json();
+          console.log('📡 ElevenLabs models raw response:', data);
+          // Server returns {models: [...]} format, so we need to extract models array
+          const modelsData = data.models || [];
+          console.log('📡 ElevenLabs models extracted:', modelsData);
+          return { type: 'elevenModels', data: modelsData };
+        })
+      );
+      
+      const results = await Promise.allSettled(promises);
+      console.log('📡 All API calls completed. Results:', results);
+      
+      const newApiData = { ...apiData };
+      results.forEach(result => {
+        if (result.status === 'fulfilled') {
+          const { type, data } = result.value;
+          console.log(`✅ API Response for ${type}:`, data);
+          console.log(`📊 Data type for ${type}:`, typeof data, Array.isArray(data));
+          console.log(`📋 Data structure for ${type}:`, JSON.stringify(data, null, 2));
+          
+          if (type === 'gemini') {
+            newApiData.geminiModels = Array.isArray(data) ? data : [];
+            console.log(`✅ Set geminiModels:`, newApiData.geminiModels.length, 'items');
+          } else if (type === 'voices') {
+            newApiData.voices = Array.isArray(data) ? data : [];
+            console.log(`✅ Set voices:`, newApiData.voices.length, 'items');
+            console.log(`🎤 First voice item:`, newApiData.voices[0]);
+          } else if (type === 'elevenModels') {
+            newApiData.elevenLabsModels = Array.isArray(data) ? data : [];
+            console.log(`✅ Set elevenLabsModels:`, newApiData.elevenLabsModels.length, 'items');
+          }
+        } else {
+          console.error('❌ API fetch failed:', result.reason);
+        }
+      });
+      
+      setApiData(newApiData);
+      
+      // Save to localStorage immediately after successful fetch
+      try {
+        localStorage.setItem('apiData', JSON.stringify(newApiData));
+        console.log('apiData saved to localStorage after fetch');
+      } catch (error) {
+        console.error('Error saving apiData to localStorage:', error);
+      }
+      
+      // Show success message
+      const successCount = results.filter(result => result.status === 'fulfilled').length;
+      if (successCount > 0) {
+        console.log(`Successfully fetched ${successCount} API endpoints`);
+      }
+      
+      // Check if any API calls failed
+      const failedResults = results.filter(result => result.status === 'rejected');
+      if (failedResults.length > 0) {
+        const errors = failedResults.map(result => result.reason.message).join('; ');
+        setFetchError(`Bazı veriler alınamadı: ${errors}`);
+      } else {
+        setFetchError(null); // Clear any previous errors
+      }
+
+    } catch (error) {
+      console.error("API Veri Çekme Hatası:", error);
+      setFetchError(error.message);
+    } finally {
+      setIsFetching(false);
+    }
+  };
+
   const virtues = [
     { name: 'Dürüstlük', detail: 'doğruyu söylemenin önemi' },
     { name: 'Cesaret', detail: 'korkuların üstesinden gelme' },
@@ -836,7 +906,17 @@ export default function App() {
   return (
     <div className="min-h-screen bg-gray-900 text-white font-sans p-4 sm:p-8" style={{background: 'linear-gradient(135deg, #1a202c, #2d3748)'}}>
       <audio ref={audioRef} />
-      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} settings={settings} setSettings={setSettings} />
+      <SettingsModal 
+        isOpen={isSettingsOpen} 
+        onClose={() => setIsSettingsOpen(false)} 
+        settings={settings} 
+        setSettings={setSettings}
+        apiData={apiData}
+        setApiData={setApiData}
+        isFetching={isFetching}
+        fetchError={fetchError}
+        onFetchApiData={handleFetchApiData}
+      />
       
       <div className="max-w-7xl mx-auto">
         <header className="flex justify-between items-center mb-12">
@@ -849,11 +929,14 @@ export default function App() {
 
         <div className="bg-gray-800/50 backdrop-blur-sm p-6 rounded-2xl shadow-2xl mb-12 border border-purple-800/50">
           <h2 className="text-2xl font-semibold mb-4 text-purple-300 flex items-center gap-2"><SparklesIcon /> Yeni Bir Masal Yarat</h2>
+          
+
+          
           <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Bir masal konusu yazın veya aşağıdan bir erdem seçerek fikir isteyin..." className="w-full p-4 rounded-lg bg-gray-900 border-2 border-purple-700 focus:border-purple-500 focus:ring-purple-500 transition duration-200 text-white placeholder-gray-500" rows="3" disabled={isLoading}></textarea>
           {error && <div className="mt-4 p-3 bg-red-900/50 border border-red-700 rounded-lg flex items-center gap-3 text-red-300"><AlertTriangleIcon /><span>{error}</span></div>}
           
           <div className="mt-6 flex flex-col items-center gap-4">
-            <button onClick={() => handleSuggestIdea()} disabled={isLoading} className="flex items-center justify-center gap-2 px-5 py-2 font-bold text-white text-base rounded-full bg-teal-600 hover:bg-teal-700 transition-all shadow-md">
+            <button onClick={() => handleSuggestIdea()} disabled={isLoading} className="flex items-center justify-center gap-2 px-5 py-2 font-bold text-white text-base rounded-full bg-teal-600 hover:bg-teal-700 transition-all shadow-md disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed">
                 {isLoading ? <LoaderIcon /> : '✨'} Rastgele Fikir Ver
             </button>
             <div className="w-full h-10 relative -mt-2">
@@ -867,11 +950,13 @@ export default function App() {
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 w-full max-w-4xl">
               {virtues.map(v => (
-                <button key={v.name} onClick={() => handleSuggestIdea(v.name, v.detail)} disabled={isLoading} className="p-2 text-xs font-semibold text-purple-200 bg-purple-900/50 border-2 border-purple-800 rounded-lg hover:bg-purple-800/50 transition-colors">
+                <button key={v.name} onClick={() => handleSuggestIdea(v.name, v.detail)} disabled={isLoading} className="p-2 text-xs font-semibold text-purple-200 bg-purple-900/50 border-2 border-purple-800 rounded-lg hover:bg-purple-800/50 transition-colors disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed">
                   {v.name}
                 </button>
               ))}
-              <CustomVirtueButton onGenerate={(virtue) => handleSuggestIdea(virtue, `önemi`)} />
+              <CustomVirtueButton onGenerate={(virtue) => {
+                handleSuggestIdea(virtue, `önemi`);
+              }} />
             </div>
           </div>
 
